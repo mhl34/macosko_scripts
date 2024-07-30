@@ -16,8 +16,8 @@ workflow cs_integration_seurat {
 
     call integration {
         input:
-            ref = process_anndata.ref_seurat
-            query = process_anndata.query_name
+            ref = process_anndata.ref_dir
+            query = process_anndata.query_dir
             output_name = "~{query_name}_labeled"
     }
 }
@@ -33,18 +33,19 @@ task process_anndata {
         python create_seurat_obj.py --ref ~{ref} --query ~{query} --ref_name ~{ref_name} --query_name ~{query_name}
     >>>
     output {
-        File ref_seurat = "~{ref_name}.qs"
-        File query_seurat = "~{query_name}.qs"
+        File ref_dir = "~{ref_name}.qs"
+        File query_dir = "~{query_name}.qs"
     }
 }
 
 task integration {
     input {
-        File ref
-        File query
-        String output_name
+        File ref_dir
+        File query_dir
+        String ref_name
+        String query_name
     }
     command <<<
-        Rscript --vanilla cs_integration_seurat.R ~{ref_obj} ~{query_obj}
+        Rscript --vanilla cs_integration_seurat.R ~{ref_dir} ~{query_dir} ~{ref_name} ~{query_name}
     >>>
 }

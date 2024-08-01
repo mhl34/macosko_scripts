@@ -44,3 +44,7 @@ if not os.path.exists(query_dir):
 print("add the intermediate files to their respective folders")
 anndata_to_folder(ref, ref_dir)
 anndata_to_folder(query, query_dir)
+
+del ref
+del query
+gc.collect()

@@ -3,6 +3,7 @@ import anndata
 import os
 from scipy.io import mmwrite
 import pandas as pd
+import gc
 
 # functions
 def anndata_to_folder(adata, folder_out_path):

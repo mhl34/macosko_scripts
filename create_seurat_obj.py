@@ -1,7 +1,7 @@
 import argparse
 import anndata 
 import os
-import scipy
+from scipy.io import mmwrite
 import pandas as pd
 
 # functions
@@ -13,7 +13,7 @@ def anndata_to_folder(adata, folder_out_path):
     cell_meta_path = os.path.join(folder_out_path, "cell_meta.csv")
     gene_meta_path = os.path.join(folder_out_path, "feature_meta.csv")
 
-    scipy.io.mmwrite(counts_path, adata.X)
+    mmwrite(counts_path, adata.X)
     adata.obs.to_csv(cell_meta_path)
     adata.var.to_csv(gene_meta_path)
 

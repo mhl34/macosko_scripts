@@ -1,6 +1,7 @@
 library(Seurat)
 library(Matrix)
 library(Seurat)
+install.packages(SeuratData)
 library(SeuratData)
 library(SeuratWrappers)
 library(ggplot2)

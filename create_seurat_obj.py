@@ -35,10 +35,10 @@ query_name = args.query_name
 
 # create a save directory
 print("create save directories")
-ref_dir = f"{os.path.dirname(args.ref)}/{ref_name}"
+ref_dir = f"{ref_name}"
 if not os.path.exists(ref_dir):
     os.mkdir(ref_dir)
-query_dir = f"{os.path.dirname(args.query)}/{query_name}"
+query_dir = f"{query_name}"
 if not os.path.exists(query_dir):
     os.mkdir(query_dir)
 

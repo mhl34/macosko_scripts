@@ -12,10 +12,8 @@ library(qs)
 
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly = T)
-ref_obj_path <- args[1]
-query_obj_path <- args[2]
-ref_name <- args[3]
-query_name <- args[4]
+ref_name <- args[1]
+query_name <- args[2]
 
 convert.folder.to.seurat = function(folder.path, dest.path) {
   if (!dir.exists(folder.path)) {
@@ -82,12 +80,12 @@ process_data = function(obj) {
     Seurat::RunUMAP(dims=1:30, verbose=F)
 }
 
-convert.folder.to.seurat(ref_obj_path, ref_obj_path + "ref.qs")
-convert.folder.to.seurat(query_obj_path, query_obj_path + "query.qs")
+convert.folder.to.seurat(ref_name, paste0(ref_name, "/ref.qs"))
+convert.folder.to.seurat(ref_name, paste0(ref_name, "/query.qs"))
 
 print("read in data")
-ref_obj <- qread(ref_obj_path + "ref.qs")
-query_obj <- qread(ref_obj_path + "query.qs")
+ref_obj <- qread(paste0(ref_name, "/ref.qs"))
+query_obj <- qread(paste0(ref_name, "/query.qs"))
 
 print("process data")
 ref_obj %<>% process_data()
@@ -113,7 +111,7 @@ adata.combined <- adata.combined %>%
   Seurat::RunUMAP(dims=1:30, reduction = "integrated.harmony", verbose=F)
 
 print("save combined object")
-qsave(adata.combined, query_obj_path + "combined.qs")
+qsave(adata.combined, paste0(query_name, "/combined.qs"))
 
 print("make predictions")
 adata.ref <- subset(adata.combined,  subset = label == ref_name)
@@ -127,4 +125,4 @@ cladeNamePredictions <- TransferData(anchorset = adata.query.anchors, refdata = 
 
 adata.query <-  AddMetaData(adata.query, metadata = clusterNmPredictions)
 
-write.csv(adata.query@meta.data, query_obj_path + "combined_pred.csv")
+write.csv(adata.query@meta.data, paste0(query_name, "/combined_pred.csv"))

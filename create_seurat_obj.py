@@ -14,7 +14,7 @@ def anndata_to_folder(adata, folder_out_path):
     cell_meta_path = os.path.join(folder_out_path, "cell_meta.csv")
     gene_meta_path = os.path.join(folder_out_path, "feature_meta.csv")
 
-    mmwrite(counts_path, adata.X)
+    mmwrite(counts_path, adata.X.astype(np.int32))
     adata.obs.to_csv(cell_meta_path)
     adata.var.to_csv(gene_meta_path)
 

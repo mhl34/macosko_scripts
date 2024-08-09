@@ -1,6 +1,7 @@
 import argparse
 import anndata 
 import os
+import numpy as np
 from scipy.io import mmwrite
 import pandas as pd
 import gc

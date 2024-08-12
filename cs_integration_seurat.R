@@ -35,13 +35,13 @@ convert.folder.to.seurat = function(folder.path, dest.path) {
   if (!file.exists(feature.meta.path)) {
     stop("feature.meta.path DNE.")
   }
-    
+  
   counts.mat = Matrix::readMM(counts.path)
   counts.mat = Matrix::t(counts.mat)
   cell.meta = read.csv(cell.meta.path)
   row.names(cell.meta) = cell.meta$X
-  feature.meta = read.csv(feature.meta.path)
-  gene.names = feature.meta$gene.name
+  feature.meta = read.csv(feature.meta.path, header = F)
+  gene.names = feature.meta$V1
   
   if (NCOL(counts.mat) != NROW(cell.meta)) {
     print(paste0("NCOL Count: ", NCOL(counts.mat)))

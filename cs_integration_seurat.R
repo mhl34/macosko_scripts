@@ -92,6 +92,12 @@ query_obj %<>% process_data()
 ref_obj$label <- ref_name
 query_obj$label <- query_name
 
+print("merge data")
+adata.combined <- merge(ref_obj, y = query_obj)
+
+print("process merged data")
+adata.combined %<>% process_data()
+
 print("integrate layers")
 adata.combined <- IntegrateLayers(
   object = adata.combined, method = CCAIntegration,

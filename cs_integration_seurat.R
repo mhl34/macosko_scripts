@@ -98,6 +98,9 @@ adata.combined <- merge(ref_obj, y = query_obj)
 print("process merged data")
 adata.combined %<>% process_data()
 
+print("garbage collect")
+gc()
+
 print("integrate layers")
 adata.combined <- IntegrateLayers(
   object = adata.combined, method = CCAIntegration,

@@ -1,8 +1,10 @@
 import argparse
 import anndata 
 import os
-import scipy
+import numpy as np
+from scipy.io import mmwrite
 import pandas as pd
+import gc
 
 # functions
 def anndata_to_folder(adata, folder_out_path):
@@ -13,7 +15,7 @@ def anndata_to_folder(adata, folder_out_path):
     cell_meta_path = os.path.join(folder_out_path, "cell_meta.csv")
     gene_meta_path = os.path.join(folder_out_path, "feature_meta.csv")
 
-    scipy.io.mmwrite(counts_path, adata.X)
+    mmwrite(counts_path, adata.X.astype(np.int64))
     adata.obs.to_csv(cell_meta_path)
     adata.var.to_csv(gene_meta_path)
 
@@ -34,13 +36,17 @@ query_name = args.query_name
 
 # create a save directory
 print("create save directories")
-ref_dir = f"{os.path.dirname(args.ref)}/{ref_name}"
+ref_dir = f"{ref_name}"
 if not os.path.exists(ref_dir):
     os.mkdir(ref_dir)
-query_dir = f"{os.path.dirname(args.query)}/{query_name}"
+query_dir = f"{query_name}"
 if not os.path.exists(query_dir):
     os.mkdir(query_dir)
 
 print("add the intermediate files to their respective folders")
 anndata_to_folder(ref, ref_dir)
 anndata_to_folder(query, query_dir)
+
+del ref
+del query
+gc.collect()

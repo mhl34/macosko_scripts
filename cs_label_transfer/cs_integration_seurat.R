@@ -1,8 +1,6 @@
 library(Seurat)
 library(Matrix)
 library(Seurat)
-library(SeuratData)
-library(SeuratWrappers)
 library(ggplot2)
 library(dplyr)
 library(patchwork)
@@ -12,10 +10,8 @@ library(qs)
 
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly = T)
-ref_obj_path <- args[1]
-query_obj_path <- args[2]
-ref_name <- args[3]
-query_name <- args[4]
+ref_name <- args[1]
+query_name <- args[2]
 
 convert.folder.to.seurat = function(folder.path, dest.path) {
   if (!dir.exists(folder.path)) {
@@ -39,13 +35,13 @@ convert.folder.to.seurat = function(folder.path, dest.path) {
   if (!file.exists(feature.meta.path)) {
     stop("feature.meta.path DNE.")
   }
-    
+  
   counts.mat = Matrix::readMM(counts.path)
   counts.mat = Matrix::t(counts.mat)
   cell.meta = read.csv(cell.meta.path)
   row.names(cell.meta) = cell.meta$X
-  feature.meta = read.csv(feature.meta.path)
-  gene.names = feature.meta$gene.name
+  feature.meta = read.csv(feature.meta.path, header = F)
+  gene.names = feature.meta$V1
   
   if (NCOL(counts.mat) != NROW(cell.meta)) {
     print(paste0("NCOL Count: ", NCOL(counts.mat)))
@@ -82,12 +78,12 @@ process_data = function(obj) {
     Seurat::RunUMAP(dims=1:30, verbose=F)
 }
 
-convert.folder.to.seurat(ref_obj_path, ref_obj_path + "ref.qs")
-convert.folder.to.seurat(query_obj_path, query_obj_path + "query.qs")
+convert.folder.to.seurat(ref_name, paste0(ref_name, "/ref.qs"))
+convert.folder.to.seurat(ref_name, paste0(ref_name, "/query.qs"))
 
 print("read in data")
-ref_obj <- qread(ref_obj_path + "ref.qs")
-query_obj <- qread(ref_obj_path + "query.qs")
+ref_obj <- qread(paste0(ref_name, "/ref.qs"))
+query_obj <- qread(paste0(ref_name, "/query.qs"))
 
 print("process data")
 ref_obj %<>% process_data()
@@ -95,6 +91,15 @@ query_obj %<>% process_data()
 
 ref_obj$label <- ref_name
 query_obj$label <- query_name
+
+print("merge data")
+adata.combined <- merge(ref_obj, y = query_obj)
+
+print("process merged data")
+adata.combined %<>% process_data()
+
+print("garbage collect")
+gc()
 
 print("integrate layers")
 adata.combined <- IntegrateLayers(
@@ -113,7 +118,7 @@ adata.combined <- adata.combined %>%
   Seurat::RunUMAP(dims=1:30, reduction = "integrated.harmony", verbose=F)
 
 print("save combined object")
-qsave(adata.combined, query_obj_path + "combined.qs")
+qsave(adata.combined, paste0(query_name, "/combined.qs"))
 
 print("make predictions")
 adata.ref <- subset(adata.combined,  subset = label == ref_name)
@@ -127,4 +132,4 @@ cladeNamePredictions <- TransferData(anchorset = adata.query.anchors, refdata = 
 
 adata.query <-  AddMetaData(adata.query, metadata = clusterNmPredictions)
 
-write.csv(adata.query@meta.data, query_obj_path + "combined_pred.csv")
+write.csv(adata.query@meta.data, paste0(query_name, "/combined_pred.csv"))

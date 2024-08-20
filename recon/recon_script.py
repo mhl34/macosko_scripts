@@ -18,6 +18,7 @@ import argparse
 from helpers import *
 import csv
 from scipy import stats
+import cupy as cp
 
 # parameters
 min_dist = 0.1
@@ -75,21 +76,38 @@ def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, l
     embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)
         
-def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1):
-    reducer = cuUMAP(n_components = 2,
-                   metric = metric,
-                   spread = 1.0,
-                   random_state = None,
-                   learning_rate = learning_rate,
-                   repulsion_strength = repulsion_strength,
-                   verbose = True,
-                   precomputed_knn = (knn_indices, knn_dists),
-                   n_neighbors = n_neighbors,
-                   min_dist = min_dist,
-                   n_epochs = n_epochs,
-                   init = init
-                  )
-    embedding = reducer.fit_transform(np.log1p(mat))
+def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, gpu_id = None):
+    if gpu_id != None:
+        with cp.cuda.Device(gpu_id):
+            reducer = cuUMAP(n_components = 2,
+                           metric = metric,
+                           spread = 1.0,
+                           random_state = None,
+                           learning_rate = learning_rate,
+                           repulsion_strength = repulsion_strength,
+                           verbose = True,
+                           precomputed_knn = (knn_indices, knn_dists),
+                           n_neighbors = n_neighbors,
+                           min_dist = min_dist,
+                           n_epochs = n_epochs,
+                           init = init
+                          )
+            embedding = reducer.fit_transform(np.log1p(mat))
+    else:
+        reducer = cuUMAP(n_components = 2,
+                           metric = metric,
+                           spread = 1.0,
+                           random_state = None,
+                           learning_rate = learning_rate,
+                           repulsion_strength = repulsion_strength,
+                           verbose = True,
+                           precomputed_knn = (knn_indices, knn_dists),
+                           n_neighbors = n_neighbors,
+                           min_dist = min_dist,
+                           n_epochs = n_epochs,
+                           init = init
+                          )
+        embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)
 
 def create_knn_matrix(knn_indices, knn_dists, n_neighbors):
@@ -179,7 +197,7 @@ if not os.path.exists(f'{dropout}/intermediate_files/mat.npz') and not cache:
     assert sorted(list(set(df.sb2_index))) == list(range(len(set(df.sb2_index))))
     mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
     
-    # scipy.sparse.save_npz(f"{dropout}/intermediate_files/mat.npz", mat)
+    scipy.sparse.save_npz(f"{dropout}/intermediate_files/mat.npz", mat)
 else:
     print("Matrix file exists!")
     mat = scipy.sparse.load_npz(f"{dropout}/intermediate_files/mat.npz")
@@ -213,54 +231,49 @@ else:
 # default learning rate: 1.0
 if not os.path.exists(f"{dropout}/embedding_mat.npz") and not cache:
     init = "spectral"
-    embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1)
+    embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2, gpu_id = 1)
 
-    sbs = [sb2["sb2"][i] for i in uniques2]
-    assert len(embeddings) == len(sbs)
-    with open(os.path.join(out_dir, "Puck.csv"), mode='w', newline='') as file:
-        writer = csv.writer(file)
-        for i in range(len(sbs)):
-            writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
+    with open(f'{dropout}/embedding_mat.npz', 'wb') as f:
+        np.savez(f, embeddings = embeddings)
+    
 
-    print("\nDone!")
-else:
-    embeddings = np.load(f"{dropout}/embedding_mat.npz")['embeddings']
-    df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
-    df.sb1_index -= 1 # convert from 1- to 0-indexed
-    df.sb2_index -= 1 # convert from 1- to 0-indexed
-    sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
-    sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
-    assert sorted(list(set(df.sb1_index))) == list(range(sb1.shape[0]))
-    assert sorted(list(set(df.sb2_index))) == list(range(sb2.shape[0]))
-    print(f"{sb1.shape[0]} R1 barcodes")
-    print(f"{sb2.shape[0]} R2 barcodes")
-    print("\nFiltering the beads...")
-    umi_before = sum(df["umi"])
-    sb1_low  = np.where(sb1['connections'] <  l1)[0]
-    sb2_low  = np.where(sb2['connections'] <  l2)[0]
-    sb1_high = np.where(sb1['connections'] >= h1)[0]
-    sb2_high = np.where(sb2['connections'] >= h2)[0]
-    print(f"{len(sb1_low)} low R1 beads filtered ({len(sb1_low)/len(sb1)*100:.2f}%)")
-    print(f"{len(sb2_low)} low R2 beads filtered ({len(sb2_low)/len(sb2)*100:.2f}%)")
-    print(f"{len(sb1_high)} high R1 beads filtered ({len(sb1_high)/len(sb1)*100:.2f}%)")
-    print(f"{len(sb2_high)} high R2 beads filtered ({len(sb2_high)/len(sb2)*100:.2f}%)")
-    df = df[~df['sb1_index'].isin(sb1_low) & ~df['sb1_index'].isin(sb1_high) & ~df['sb2_index'].isin(sb2_low) & ~df['sb2_index'].isin(sb2_high)]
-    umi_after = sum(df["umi"])
-    print(f"{umi_before-umi_after} UMIs filtered ({(umi_before-umi_after)/umi_before*100:.2f}%)")
-    codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)
-    df.loc[:, 'sb1_index'] = codes1
-    codes2, uniques2 = pd.factorize(df['sb2_index'], sort=True)
-    df.loc[:, 'sb2_index'] = codes2
-    assert sorted(list(set(df.sb1_index))) == list(range(len(set(df.sb1_index))))
-    assert sorted(list(set(df.sb2_index))) == list(range(len(set(df.sb2_index))))
-    sbs = [sb2["sb2"][i] for i in uniques2]
-    print(embeddings.shape, len(sbs))
-    assert len(embeddings) == len(sbs)
-    with open(os.path.join(f"{dropout}/outputs/Puck.csv"), mode='w', newline='') as file:
-        writer = csv.writer(file)
-        for i in range(len(sbs)):
-            writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
+embeddings = np.load(f"{dropout}/embedding_mat.npz")['embeddings']
+df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
+df.sb1_index -= 1 # convert from 1- to 0-indexed
+df.sb2_index -= 1 # convert from 1- to 0-indexed
+sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
+sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
+assert sorted(list(set(df.sb1_index))) == list(range(sb1.shape[0]))
+assert sorted(list(set(df.sb2_index))) == list(range(sb2.shape[0]))
+print(f"{sb1.shape[0]} R1 barcodes")
+print(f"{sb2.shape[0]} R2 barcodes")
+print("\nFiltering the beads...")
+umi_before = sum(df["umi"])
+sb1_low  = np.where(sb1['connections'] <  l1)[0]
+sb2_low  = np.where(sb2['connections'] <  l2)[0]
+sb1_high = np.where(sb1['connections'] >= h1)[0]
+sb2_high = np.where(sb2['connections'] >= h2)[0]
+print(f"{len(sb1_low)} low R1 beads filtered ({len(sb1_low)/len(sb1)*100:.2f}%)")
+print(f"{len(sb2_low)} low R2 beads filtered ({len(sb2_low)/len(sb2)*100:.2f}%)")
+print(f"{len(sb1_high)} high R1 beads filtered ({len(sb1_high)/len(sb1)*100:.2f}%)")
+print(f"{len(sb2_high)} high R2 beads filtered ({len(sb2_high)/len(sb2)*100:.2f}%)")
+df = df[~df['sb1_index'].isin(sb1_low) & ~df['sb1_index'].isin(sb1_high) & ~df['sb2_index'].isin(sb2_low) & ~df['sb2_index'].isin(sb2_high)]
+umi_after = sum(df["umi"])
+print(f"{umi_before-umi_after} UMIs filtered ({(umi_before-umi_after)/umi_before*100:.2f}%)")
+codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)
+df.loc[:, 'sb1_index'] = codes1
+codes2, uniques2 = pd.factorize(df['sb2_index'], sort=True)
+df.loc[:, 'sb2_index'] = codes2
+assert sorted(list(set(df.sb1_index))) == list(range(len(set(df.sb1_index))))
+assert sorted(list(set(df.sb2_index))) == list(range(len(set(df.sb2_index))))
+sbs = [sb2["sb2"][i] for i in uniques2]
+print(embeddings.shape, len(sbs))
+assert len(embeddings) == len(sbs)
+with open(os.path.join(f"{dropout}/outputs/Puck.csv"), mode='w', newline='') as file:
+    writer = csv.writer(file)
+    for i in range(len(sbs)):
+        writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
 
-    print("\nDone!")
+print("\nDone!")
     
 hexmap(embeddings, f"{dropout}/outputs/umap_{n_epochs}_{connectivity}" if mnn else f"{dropout}/outputs/umap_{n_epochs}_knn")

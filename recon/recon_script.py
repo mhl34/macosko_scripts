@@ -1,5 +1,3 @@
-import cuml
-from cuml.manifold.umap import UMAP as cuUMAP
 import pandas as pd
 import numpy as np
 from scipy.sparse import coo_matrix
@@ -76,39 +74,39 @@ def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, l
     embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)
         
-def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, gpu_id = None):
-    if gpu_id != None:
-        with cp.cuda.Device(gpu_id):
-            reducer = cuUMAP(n_components = 2,
-                           metric = metric,
-                           spread = 1.0,
-                           random_state = None,
-                           learning_rate = learning_rate,
-                           repulsion_strength = repulsion_strength,
-                           verbose = True,
-                           precomputed_knn = (knn_indices, knn_dists),
-                           n_neighbors = n_neighbors,
-                           min_dist = min_dist,
-                           n_epochs = n_epochs,
-                           init = init
-                          )
-            embedding = reducer.fit_transform(np.log1p(mat))
-    else:
-        reducer = cuUMAP(n_components = 2,
-                           metric = metric,
-                           spread = 1.0,
-                           random_state = None,
-                           learning_rate = learning_rate,
-                           repulsion_strength = repulsion_strength,
-                           verbose = True,
-                           precomputed_knn = (knn_indices, knn_dists),
-                           n_neighbors = n_neighbors,
-                           min_dist = min_dist,
-                           n_epochs = n_epochs,
-                           init = init
-                          )
-        embedding = reducer.fit_transform(np.log1p(mat))
-    return(embedding)
+# def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, gpu_id = None):
+#     if gpu_id != None:
+#         with cp.cuda.Device(gpu_id):
+#             reducer = cuUMAP(n_components = 2,
+#                            metric = metric,
+#                            spread = 1.0,
+#                            random_state = None,
+#                            learning_rate = learning_rate,
+#                            repulsion_strength = repulsion_strength,
+#                            verbose = True,
+#                            precomputed_knn = (knn_indices, knn_dists),
+#                            n_neighbors = n_neighbors,
+#                            min_dist = min_dist,
+#                            n_epochs = n_epochs,
+#                            init = init
+#                           )
+#             embedding = reducer.fit_transform(np.log1p(mat))
+#     else:
+#         reducer = cuUMAP(n_components = 2,
+#                            metric = metric,
+#                            spread = 1.0,
+#                            random_state = None,
+#                            learning_rate = learning_rate,
+#                            repulsion_strength = repulsion_strength,
+#                            verbose = True,
+#                            precomputed_knn = (knn_indices, knn_dists),
+#                            n_neighbors = n_neighbors,
+#                            min_dist = min_dist,
+#                            n_epochs = n_epochs,
+#                            init = init
+#                           )
+#         embedding = reducer.fit_transform(np.log1p(mat))
+#     return(embedding)
 
 def create_knn_matrix(knn_indices, knn_dists, n_neighbors):
     assert knn_indices.shape == knn_dists.shape
@@ -231,7 +229,7 @@ else:
 # default learning rate: 1.0
 if not os.path.exists(f"{dropout}/embedding_mat.npz") and not cache:
     init = "spectral"
-    embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2, gpu_id = 1)
+    embeddings = my_umap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2, gpu_id = 1)
 
     with open(f'{dropout}/embedding_mat.npz', 'wb') as f:
         np.savez(f, embeddings = embeddings)

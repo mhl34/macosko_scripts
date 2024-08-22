@@ -1,3 +1,5 @@
+import cuml
+from cuml.manifold.umap import UMAP as cuUMAP
 import pandas as pd
 import numpy as np
 from scipy.sparse import coo_matrix
@@ -21,7 +23,7 @@ import cupy as cp
 # parameters
 min_dist = 0.1
 init = 'spectral'
-n_epochs = 20000
+n_epochs = 100000
 
 # functions
 def knn_descent(mat, n_neighbors, metric="cosine", n_cores=-1, metric_kwds = {}):
@@ -61,7 +63,6 @@ def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, l
     reducer = UMAP(n_components = 2,
                    metric = metric,
                    spread = 1.0,
-                   random_state = 0,
                    learning_rate = learning_rate,
                    repulsion_strength = repulsion_strength,
                    verbose = True,
@@ -74,39 +75,39 @@ def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, l
     embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)
         
-# def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, gpu_id = None):
-#     if gpu_id != None:
-#         with cp.cuda.Device(gpu_id):
-#             reducer = cuUMAP(n_components = 2,
-#                            metric = metric,
-#                            spread = 1.0,
-#                            random_state = None,
-#                            learning_rate = learning_rate,
-#                            repulsion_strength = repulsion_strength,
-#                            verbose = True,
-#                            precomputed_knn = (knn_indices, knn_dists),
-#                            n_neighbors = n_neighbors,
-#                            min_dist = min_dist,
-#                            n_epochs = n_epochs,
-#                            init = init
-#                           )
-#             embedding = reducer.fit_transform(np.log1p(mat))
-#     else:
-#         reducer = cuUMAP(n_components = 2,
-#                            metric = metric,
-#                            spread = 1.0,
-#                            random_state = None,
-#                            learning_rate = learning_rate,
-#                            repulsion_strength = repulsion_strength,
-#                            verbose = True,
-#                            precomputed_knn = (knn_indices, knn_dists),
-#                            n_neighbors = n_neighbors,
-#                            min_dist = min_dist,
-#                            n_epochs = n_epochs,
-#                            init = init
-#                           )
-#         embedding = reducer.fit_transform(np.log1p(mat))
-#     return(embedding)
+def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, gpu_id = None):
+    if gpu_id != None:
+        with cp.cuda.Device(gpu_id):
+            reducer = cuUMAP(n_components = 2,
+                           metric = metric,
+                           spread = 1.0,
+                           random_state = None,
+                           learning_rate = learning_rate,
+                           repulsion_strength = repulsion_strength,
+                           verbose = True,
+                           precomputed_knn = (knn_indices, knn_dists),
+                           n_neighbors = n_neighbors,
+                           min_dist = min_dist,
+                           n_epochs = n_epochs,
+                           init = init
+                          )
+            embedding = reducer.fit_transform(np.log1p(mat))
+    else:
+        reducer = cuUMAP(n_components = 2,
+                           metric = metric,
+                           spread = 1.0,
+                           random_state = None,
+                           learning_rate = learning_rate,
+                           repulsion_strength = repulsion_strength,
+                           verbose = True,
+                           precomputed_knn = (knn_indices, knn_dists),
+                           n_neighbors = n_neighbors,
+                           min_dist = min_dist,
+                           n_epochs = n_epochs,
+                           init = init
+                          )
+        embedding = reducer.fit_transform(np.log1p(mat))
+    return(embedding)
 
 def create_knn_matrix(knn_indices, knn_dists, n_neighbors):
     assert knn_indices.shape == knn_dists.shape
@@ -200,9 +201,9 @@ else:
     print("Matrix file exists!")
     mat = scipy.sparse.load_npz(f"{dropout}/intermediate_files/mat.npz")
     
-connectivity = "min_tree"
+connectivity = "full_tree"
     
-if not mnn or not os.path.exists(f'{dropout}/knn_output.npz') and not cache:
+if not mnn or (not os.path.exists(f'{dropout}/knn_output.npz') and not cache):
     if not os.path.exists(f'{dropout}/knn_output.npz') and not cache:
         knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
         with open(f'{dropout}/knn_output.npz', 'wb') as f:

@@ -59,7 +59,7 @@ def hexmap(embedding, plot_name = None):
     if plot_name:
         plt.savefig(f"{plot_name}.png")
         
-def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1):
+def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, n_cores = -1, learning_rate = 1):
     reducer = UMAP(n_components = 2,
                    metric = metric,
                    spread = 1.0,
@@ -70,7 +70,8 @@ def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, l
                    n_neighbors = n_neighbors,
                    min_dist = min_dist,
                    n_epochs = n_epochs,
-                   init = init
+                   init = init,
+                   n_jobs = n_cores
                   )
     embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)

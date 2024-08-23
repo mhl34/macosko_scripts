@@ -231,7 +231,7 @@ else:
 # default learning rate: 1.0
 if not os.path.exists(f"{dropout}/embedding_mat.npz") and not cache:
     init = "spectral"
-    embeddings = my_umap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
+    embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
 
     with open(f'{dropout}/embedding_mat.npz', 'wb') as f:
         np.savez(f, embeddings = embeddings)

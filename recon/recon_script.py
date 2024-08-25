@@ -204,7 +204,7 @@ else:
     
 connectivity = "full_tree"
     
-if not mnn or (not os.path.exists(f'{dropout}/knn_output.npz') and not cache):
+if not mnn:
     if not os.path.exists(f'{dropout}/knn_output.npz') and not cache:
         knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
         with open(f'{dropout}/knn_output.npz', 'wb') as f:
@@ -216,9 +216,7 @@ if not mnn or (not os.path.exists(f'{dropout}/knn_output.npz') and not cache):
         knn_dists = knn_outputs['knn_dists']
 else:
     if not os.path.exists(f'{dropout}/mnn_output.npz'):
-        knn_outputs = np.load( f'{dropout}/knn_output.npz')
-        knn_indices = knn_outputs['knn_indices']
-        knn_dists = knn_outputs['knn_dists']
+        knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
         knn_indices, knn_dists = mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
         with open(f'{dropout}/mnn_output.npz', 'wb') as f:
             np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)

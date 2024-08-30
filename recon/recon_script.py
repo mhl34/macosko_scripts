@@ -23,7 +23,7 @@ import cupy as cp
 # parameters
 min_dist = 0.1
 init = 'spectral'
-n_epochs = 80000
+n_epochs = 100000
 
 # functions
 def knn_descent(mat, n_neighbors, metric="cosine", n_cores=-1, metric_kwds = {}):

@@ -216,7 +216,7 @@ if not mnn:
         knn_dists = knn_outputs['knn_dists']
 else:
     if not os.path.exists(f'{dropout}/mnn_output.npz'):
-        knn_indices, knn_dists = knn_descent(np.log(mat), n_neighbors, metric = "cosine")
+        knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
         knn_indices, knn_dists = mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
         with open(f'{dropout}/mnn_output.npz', 'wb') as f:
             np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)

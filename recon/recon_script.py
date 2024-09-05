@@ -44,6 +44,20 @@ def knn_descent(mat, n_neighbors, metric="cosine", n_cores=-1, metric_kwds = {})
                                 )
     return knn_indices, knn_dists
 
+def cuknn_descent(mat, n_neighbors, metric="cosine"):
+    """
+    creating nearest neighbors
+    """
+    from cuml.neighbors import NearestNeighbors as cuNearestNeighbors
+    knn_cuml = cuNearestNeighbors(n_neighbors = n_neighbors,
+                                    metric = metric,
+                                    verbose = True,
+                                    output_type = 'array'
+                                 )
+    knn_cuml.fit(mat)
+    knn_dists, knn_indices = knn_cuml.kneighbors(mat, n_neighbors)
+    return knn_indices, knn_dists
+
 def hexmap(embedding, plot_name = None):
     """
     plotting with overlaps
@@ -206,7 +220,7 @@ connectivity = "full_tree"
     
 if not mnn:
     if not os.path.exists(f'{dropout}/knn_output.npz') and not cache:
-        knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
+        knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
         with open(f'{dropout}/knn_output.npz', 'wb') as f:
             np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
     else:

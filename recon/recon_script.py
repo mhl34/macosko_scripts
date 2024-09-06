@@ -182,34 +182,9 @@ else:
 # if the matrix file does not exist make it
 if not os.path.exists(f'{dropout}/intermediate_files/mat.npz') and not cache:
     df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
-    df.sb1_index -= 1 # convert from 1- to 0-indexed
-    df.sb2_index -= 1 # convert from 1- to 0-indexed
-    sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
-    sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
-    assert sorted(list(set(df.sb1_index))) == list(range(sb1.shape[0]))
-    assert sorted(list(set(df.sb2_index))) == list(range(sb2.shape[0]))
-    print(f"{sb1.shape[0]} R1 barcodes")
-    print(f"{sb2.shape[0]} R2 barcodes")
-    print("\nFiltering the beads...")
-    umi_before = sum(df["umi"])
-    sb1_low  = np.where(sb1['connections'] <  l1)[0]
-    sb2_low  = np.where(sb2['connections'] <  l2)[0]
-    sb1_high = np.where(sb1['connections'] >= h1)[0]
-    sb2_high = np.where(sb2['connections'] >= h2)[0]
-    print(f"{len(sb1_low)} low R1 beads filtered ({len(sb1_low)/len(sb1)*100:.2f}%)")
-    print(f"{len(sb2_low)} low R2 beads filtered ({len(sb2_low)/len(sb2)*100:.2f}%)")
-    print(f"{len(sb1_high)} high R1 beads filtered ({len(sb1_high)/len(sb1)*100:.2f}%)")
-    print(f"{len(sb2_high)} high R2 beads filtered ({len(sb2_high)/len(sb2)*100:.2f}%)")
-    df = df[~df['sb1_index'].isin(sb1_low) & ~df['sb1_index'].isin(sb1_high) & ~df['sb2_index'].isin(sb2_low) & ~df['sb2_index'].isin(sb2_high)]
-    umi_after = sum(df["umi"])
-    print(f"{umi_before-umi_after} UMIs filtered ({(umi_before-umi_after)/umi_before*100:.2f}%)")
-    codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)
-    df.loc[:, 'sb1_index'] = codes1
-    codes2, uniques2 = pd.factorize(df['sb2_index'], sort=True)
-    df.loc[:, 'sb2_index'] = codes2
-    assert sorted(list(set(df.sb1_index))) == list(range(len(set(df.sb1_index))))
-    assert sorted(list(set(df.sb2_index))) == list(range(len(set(df.sb2_index))))
+    df, uniques1, uniques2, _, _ = connection_filter(df)
     mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
+    del df
     
     scipy.sparse.save_npz(f"{dropout}/intermediate_files/mat.npz", mat)
 else:

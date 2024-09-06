@@ -151,6 +151,7 @@ l2 = int(low)
 h1 = int(high)
 h2 = int(high)
 
+print('filter matrix')
 df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
 df, uniques1, uniques2, _, _ = connection_filter(df)
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
@@ -158,7 +159,8 @@ mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 # scipy.sparse.save_npz(f"{dropout}/intermediate_files/mat.npz", mat)
     
 connectivity = "full_tree"
-    
+
+print('cuknn descent')
 knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
 # with open(f'{dropout}/intermediate_files/knn_output_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
@@ -166,10 +168,12 @@ knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cos
 with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
+print('mutual neighbors')
 knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
 with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
+print('umap')
 init = "spectral"
 embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
 

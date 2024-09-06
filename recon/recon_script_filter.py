@@ -168,7 +168,6 @@ sb1_high = np.where(sb1['connections'] >= h1)[0]
 sb2_high = np.where(sb2['connections'] >= h2)[0]
 rand_dropout_sb1 = np.random.choice(len(sb1), round(len(sb1) * rd_sb1))
 rand_dropout_sb2 = np.random.choice(len(sb2), round(len(sb2) * rd_sb2))
-unplaced_sb2 = np.load(f'unplaced/unplaced_{dropout}.npz')['arr']
 print(f"{len(sb1_low)} low R1 beads filtered ({len(sb1_low)/len(sb1)*100:.2f}%)")
 print(f"{len(sb2_low)} low R2 beads filtered ({len(sb2_low)/len(sb2)*100:.2f}%)")
 print(f"{len(sb1_high)} high R1 beads filtered ({len(sb1_high)/len(sb1)*100:.2f}%)")
@@ -200,11 +199,11 @@ knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cos
 # with open(f'{dropout}/intermediate_files/knn_output_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
-with open(f'{dropout}/knn_output_unplaced_filter_{dropout}.npz', 'wb') as f:
+with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
 knn_indices, knn_dists = mutual_nn_nearest(np.log1p(mat), n_neighbors, metric = "cosine")
-with open(f'{dropout}/mnn_output_unplaced_filter_{dropout}.npz', 'wb') as f:
+with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
 # default learning rate: 1.0
@@ -214,7 +213,7 @@ embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_st
 # with open(f'{dropout}/outputs/embedding_mat_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
 #     np.savez(f, embeddings = embeddings)
 
-with open(f'{dropout}/embedding_mat_unplaced_filter.npz', 'wb') as f:
+with open(f'{dropout}/embedding_mat_cuknn.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)
 
 # with open(os.path.join(f"{dropout}/outputs/Puck_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.csv"), mode='w', newline='') as file:
@@ -224,7 +223,7 @@ with open(f'{dropout}/embedding_mat_unplaced_filter.npz', 'wb') as f:
 
 # print("\nDone!")
 
-with open(os.path.join(f"{dropout}/Puck_unplaced_filter.csv"), mode='w', newline='') as file:
+with open(os.path.join(f"{dropout}/Puck_cuknn.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):
         writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
@@ -233,4 +232,4 @@ print("\nDone!")
     
 # hexmap(embeddings, f"{dropout}/outputs/umap_{n_epochs}_{connectivity}_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}" if mnn else f"{dropout}/outputs/umap_{n_epochs}_knn_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}")
 
-hexmap(embeddings, f"{dropout}/umap_{connectivity}_{n_epochs}_unplaced_filter" if mnn else f"{dropout}/umap_{n_epochs}_unplaced_filter")
+hexmap(embeddings, f"{dropout}/umap_{connectivity}_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")

@@ -175,14 +175,12 @@ print(f"{len(sb1_high)} high R1 beads filtered ({len(sb1_high)/len(sb1)*100:.2f}
 print(f"{len(sb2_high)} high R2 beads filtered ({len(sb2_high)/len(sb2)*100:.2f}%)")
 print(f"{len(rand_dropout_sb1)} random R1 beads filtered ({len(rand_dropout_sb1)/len(sb1)*100:.2f}%)")
 print(f"{len(rand_dropout_sb2)} random R2 beads filtered ({len(rand_dropout_sb2)/len(sb2)*100:.2f}%)")
-print(f"{len(unplaced_sb2)} unplaced R2 beads filtered ({len(unplaced_sb2)/len(sb2)*100:.2f}%)")
 df = df[~df['sb1_index'].isin(sb1_low) 
 & ~df['sb1_index'].isin(sb1_high) 
 & ~df['sb2_index'].isin(sb2_low) 
 & ~df['sb2_index'].isin(sb2_high) 
 & ~df['sb1_index'].isin(rand_dropout_sb1) 
-& ~df['sb2_index'].isin(rand_dropout_sb2)
-& ~df['sb2_index'].isin(unplaced_sb2)]
+& ~df['sb2_index'].isin(rand_dropout_sb2)]
 umi_after = sum(df["umi"])
 print(f"{umi_before-umi_after} UMIs filtered ({(umi_before-umi_after)/umi_before*100:.2f}%)")
 codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)

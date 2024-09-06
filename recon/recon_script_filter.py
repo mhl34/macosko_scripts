@@ -152,43 +152,7 @@ h1 = int(high)
 h2 = int(high)
 
 df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
-df.sb1_index -= 1 # convert from 1- to 0-indexed
-df.sb2_index -= 1 # convert from 1- to 0-indexed
-sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
-sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
-assert sorted(list(set(df.sb1_index))) == list(range(sb1.shape[0]))
-assert sorted(list(set(df.sb2_index))) == list(range(sb2.shape[0]))
-print(f"{sb1.shape[0]} R1 barcodes")
-print(f"{sb2.shape[0]} R2 barcodes")
-print("\nFiltering the beads...")
-umi_before = sum(df["umi"])
-sb1_low  = np.where(sb1['connections'] <  l1)[0]
-sb2_low  = np.where(sb2['connections'] <  l2)[0]
-sb1_high = np.where(sb1['connections'] >= h1)[0]
-sb2_high = np.where(sb2['connections'] >= h2)[0]
-rand_dropout_sb1 = np.random.choice(len(sb1), round(len(sb1) * rd_sb1))
-rand_dropout_sb2 = np.random.choice(len(sb2), round(len(sb2) * rd_sb2))
-print(f"{len(sb1_low)} low R1 beads filtered ({len(sb1_low)/len(sb1)*100:.2f}%)")
-print(f"{len(sb2_low)} low R2 beads filtered ({len(sb2_low)/len(sb2)*100:.2f}%)")
-print(f"{len(sb1_high)} high R1 beads filtered ({len(sb1_high)/len(sb1)*100:.2f}%)")
-print(f"{len(sb2_high)} high R2 beads filtered ({len(sb2_high)/len(sb2)*100:.2f}%)")
-print(f"{len(rand_dropout_sb1)} random R1 beads filtered ({len(rand_dropout_sb1)/len(sb1)*100:.2f}%)")
-print(f"{len(rand_dropout_sb2)} random R2 beads filtered ({len(rand_dropout_sb2)/len(sb2)*100:.2f}%)")
-df = df[~df['sb1_index'].isin(sb1_low) 
-& ~df['sb1_index'].isin(sb1_high) 
-& ~df['sb2_index'].isin(sb2_low) 
-& ~df['sb2_index'].isin(sb2_high) 
-& ~df['sb1_index'].isin(rand_dropout_sb1) 
-& ~df['sb2_index'].isin(rand_dropout_sb2)]
-umi_after = sum(df["umi"])
-print(f"{umi_before-umi_after} UMIs filtered ({(umi_before-umi_after)/umi_before*100:.2f}%)")
-codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)
-df.loc[:, 'sb1_index'] = codes1
-codes2, uniques2 = pd.factorize(df['sb2_index'], sort=True)
-df.loc[:, 'sb2_index'] = codes2
-assert sorted(list(set(df.sb1_index))) == list(range(len(set(df.sb1_index))))
-assert sorted(list(set(df.sb2_index))) == list(range(len(set(df.sb2_index))))
-
+df, uniques1, uniques2, _, _ = connection_filter(df)
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 
 # scipy.sparse.save_npz(f"{dropout}/intermediate_files/mat.npz", mat)
@@ -202,26 +166,15 @@ knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cos
 with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
-knn_indices, knn_dists = mutual_nn_nearest(np.log1p(mat), n_neighbors, metric = "cosine")
+knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
 with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
-# default learning rate: 1.0
 init = "spectral"
 embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
 
-# with open(f'{dropout}/outputs/embedding_mat_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
-#     np.savez(f, embeddings = embeddings)
-
 with open(f'{dropout}/embedding_mat_cuknn.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)
-
-# with open(os.path.join(f"{dropout}/outputs/Puck_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.csv"), mode='w', newline='') as file:
-#     writer = csv.writer(file)
-#     for i in range(len(sbs)):
-#         writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
-
-# print("\nDone!")
 
 with open(os.path.join(f"{dropout}/Puck_cuknn.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)

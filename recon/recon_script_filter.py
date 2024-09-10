@@ -168,10 +168,10 @@ knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cos
 with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
-print('mutual neighbors')
-knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
-with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
-    np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
+# print('mutual neighbors')
+# knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
+# with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
+#     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
 print('umap')
 init = "spectral"

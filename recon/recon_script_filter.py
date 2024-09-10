@@ -160,24 +160,32 @@ scipy.sparse.save_npz(f"mat.npz", mat)
     
 connectivity = "full_tree"
 
-print('cuknn descent')
-knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
+# print('cuknn descent')
+# knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
+print('knn descent (150)')
+n_neighbors = 45
+n_neighbors2 = 150
+knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors2, metric = "cosine")
+knn_indices = knn_indices[:, :45]
+knn_dists = knn_dists[:, :45]
+with open(f'{dropout}/knn_output_150_{dropout}.npz', 'wb') as f:
+    np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 # with open(f'{dropout}/intermediate_files/knn_output_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
-with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
-    np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
+# with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
+#     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
-# print('mutual neighbors')
-# knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
-# with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
-#     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
+print('mutual neighbors')
+knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
+with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
+    np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
 print('umap')
 init = "spectral"
 embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
 
-with open(f'{dropout}/embedding_mat_cuknn.npz', 'wb') as f:
+with open(f'{dropout}/embedding_mat_knn_150.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)
 
 with open(os.path.join(f"{dropout}/Puck_cuknn.csv"), mode='w', newline='') as file:

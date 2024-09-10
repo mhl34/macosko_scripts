@@ -24,25 +24,6 @@ min_dist = 0.1
 init = 'spectral'
 n_epochs = 100000
 
-# functions
-def knn_descent(mat, n_neighbors, metric="cosine", n_cores=-1, metric_kwds = {}):
-    """
-    creating nearest neighbors
-    """
-    from umap.umap_ import nearest_neighbors
-    knn_indices, knn_dists, _ = nearest_neighbors(mat,
-                                    n_neighbors = n_neighbors,
-                                    metric = metric,
-                                    metric_kwds = metric_kwds,
-                                    angular = False, # Does nothing?
-                                    random_state = None, # sklearn.utils.check_random_state(0)
-                                    low_memory = True, # False?
-                                    use_pynndescent = True, # Does nothing?
-                                    n_jobs = n_cores,
-                                    verbose = True
-                                )
-    return knn_indices, knn_dists
-
 def cuknn_descent(mat, n_neighbors, metric="cosine"):
     """
     creating nearest neighbors

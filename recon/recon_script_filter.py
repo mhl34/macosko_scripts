@@ -156,7 +156,7 @@ df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
 df, uniques1, uniques2, _, _ = connection_filter(df)
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 
-# scipy.sparse.save_npz(f"{dropout}/intermediate_files/mat.npz", mat)
+scipy.sparse.save_npz(f"mat.npz", mat)
     
 connectivity = "full_tree"
 

@@ -188,7 +188,7 @@ embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_st
 with open(f'{dropout}/embedding_mat_knn_150.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)
 
-with open(os.path.join(f"{dropout}/Puck_cuknn.csv"), mode='w', newline='') as file:
+with open(os.path.join(f"{dropout}/Puck_knn_150.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):
         writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])

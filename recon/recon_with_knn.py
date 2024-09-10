@@ -168,7 +168,7 @@ print('cuknn descent')
 # with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
-knn_output = np.load(f'{dropout}/knn_output_cuknn_{dropout}.npz.npz')
+knn_output = np.load(f'{dropout}/knn_output_cuknn_{dropout}.npz')
 knn_indices = knn_output['knn_indices']
 knn_dists = knn_output['knn_dists']
 

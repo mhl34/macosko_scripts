@@ -133,10 +133,10 @@ rd_sb2 = float(args.rd_sb2)
 # h1 = int(high)
 # h2 = int(high)
 
-# print('filter matrix')
-# df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
-# df, uniques1, uniques2, _, _ = connection_filter(df)
-# mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
+print('filter matrix')
+df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
+df, uniques1, uniques2, _, _ = connection_filter(df)
+mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 
 # scipy.sparse.save_npz(f"mat.npz", mat)
     
@@ -163,7 +163,7 @@ rd_sb2 = float(args.rd_sb2)
 # with open(f'{dropout}/mnn_output_{n_epochs}_150_{dropout}.npz', 'wb') as f:
 #     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
-mat = scipy.sparse.load_npz(f'{dropout}/mat.npz')
+# mat = scipy.sparse.load_npz(f'{dropout}/mat.npz')
 knn_output = np.load(f'{dropout}/knn_output_150_{dropout}.npz')
 knn_indices = knn_output['knn_indices']
 knn_dists = knn_output['knn_dists']

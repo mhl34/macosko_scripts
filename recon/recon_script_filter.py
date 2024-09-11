@@ -173,6 +173,10 @@ embeddings = my_cuumap(mat, n_epochs, init=init)
 with open(f'{dropout}/embedding_mat_{n_epochs}_knn_150.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)
 
+hexmap(embeddings, f"{dropout}/umap_{connectivity}_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")
+
+sbs = [sb2["sb2"][i] for i in uniques2]
+assert embedding.shape[0] == len(sbs)
 with open(os.path.join(f"{dropout}/Puck__{n_epochs}_knn_150.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):
@@ -182,4 +186,3 @@ print("\nDone!")
     
 # hexmap(embeddings, f"{dropout}/outputs/umap_{n_epochs}_{connectivity}_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}" if mnn else f"{dropout}/outputs/umap_{n_epochs}_knn_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}")
 
-hexmap(embeddings, f"{dropout}/umap_{connectivity}_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")

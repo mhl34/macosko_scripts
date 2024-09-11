@@ -179,7 +179,7 @@ with open(f'{dropout}/mnn_output_cuknn_{dropout}.npz', 'wb') as f:
 
 print('umap')
 init = "spectral"
-embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
+embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1)
 
 with open(f'{dropout}/embedding_mat_cuknn.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)

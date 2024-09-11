@@ -164,13 +164,13 @@ mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 #     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
 # mat = scipy.sparse.load_npz(f'{dropout}/mat.npz')
-knn_output = np.load(f'{dropout}/knn_output_150_{dropout}.npz')
-knn_indices = knn_output['knn_indices']
-knn_dists = knn_output['knn_dists']
+knn_output = np.load(f'{dropout}/mnn_output_cuknn_{dropout}.npz')
+knn_indices = knn_output['mnn_indices']
+knn_dists = knn_output['mnn_dists']
 
 print('umap')
 init = "spectral"
-embeddings = my_cuumap(mat, n_epochs, init=init, learning_rate = 1, repulsion_strength = 2)
+embeddings = my_umap(mat, n_epochs, init=init)
 
 with open(f'{dropout}/embedding_mat_{n_epochs}_cpu_knn_150.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)

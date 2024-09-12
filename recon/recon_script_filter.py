@@ -134,6 +134,8 @@ h2 = int(high)
 
 print('filter matrix')
 df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
+df.sb1_index -= 1 # convert from 1- to 0-indexed
+df.sb2_index -= 1 # convert from 1- to 0-indexed
 df, uniques1, uniques2, _, _ = connection_filter(df)
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 

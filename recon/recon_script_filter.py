@@ -173,7 +173,7 @@ embeddings = my_cuumap(mat, n_epochs, init=init)
 with open(f'{dropout}/embedding_mat_{n_epochs}_knn_150.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)
 
-hexmap(embeddings, f"{dropout}/umap_{connectivity}_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")
+hexmap(embeddings, f"{dropout}/umap_mnn_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")
 
 sbs = [sb2["sb2"][i] for i in uniques2]
 assert embedding.shape[0] == len(sbs)

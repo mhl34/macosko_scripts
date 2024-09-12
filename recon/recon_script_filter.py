@@ -136,6 +136,8 @@ print('filter matrix')
 df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
 df.sb1_index -= 1 # convert from 1- to 0-indexed
 df.sb2_index -= 1 # convert from 1- to 0-indexed
+sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz'), compression='gzip')
+sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz'), compression='gzip')
 df, uniques1, uniques2, _, _ = connection_filter(df)
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 
@@ -179,7 +181,7 @@ hexmap(embeddings, f"{dropout}/umap_mnn_{n_epochs}_cuknn" if mnn else f"{dropout
 
 sbs = [sb2["sb2"][i] for i in uniques2]
 assert embedding.shape[0] == len(sbs)
-with open(os.path.join(f"{dropout}/Puck__{n_epochs}_knn_150.csv"), mode='w', newline='') as file:
+with open(os.path.join(f"{dropout}/Puck_{n_epochs}_cuknn.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):
         writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])

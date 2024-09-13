@@ -274,9 +274,8 @@ def knn_filter(knn_indices, knn_dists):
     axes[0,1].set_title(f'Furthest neighbor distance ({knn_dists.shape[1]})')
 
     # Filter low clustering coefficients
-    z_low = 3
+    z_low = -3
     clustering_neighbors = 20
-    # z_low = -3
     knn_matrix = create_knn_matrix(knn_indices[:, :clustering_neighbors], knn_dists[:, :clustering_neighbors], clustering_neighbors)
     G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
     clustering = nx.clustering(G, nodes=None, weight=None)

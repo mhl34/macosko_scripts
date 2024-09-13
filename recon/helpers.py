@@ -273,25 +273,22 @@ def knn_filter(knn_indices, knn_dists):
     axes[0,1].set_xlabel(f'Distance')
     axes[0,1].set_title(f'Furthest neighbor distance ({knn_dists.shape[1]})')
 
-    # Filter high clustering coefficients
-    z_high = 3
+    # Filter low clustering coefficients
+    z_low = 3
+    clustering_neighbors = 20
     # z_low = -3
-    knn_matrix = create_knn_matrix(knn_indices, knn_dists, knn_indices.shape[1])
+    knn_matrix = create_knn_matrix(knn_indices[:, :clustering_neighbors], knn_dists[:, :clustering_neighbors], clustering_neighbors)
     G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
     clustering = nx.clustering(G, nodes=None, weight=None)
     data = [clustering[key] for key in sorted(clustering.keys())]
-    hist_z(axes[1,1], data, z_high=z_high)
+    hist_z(axes[1,1], data, z_low=z_low)
     axes[1,1].set_xlabel('Clustering coefficient')
     axes[1,1].set_title('Local clustering coefficient')
     
-    high = knn_indices[data > np.mean(data) + np.std(data) * z_high, 0]
-    # low = knn_indices[data > np.mean(data) + np.std(data) * z_low, 0]
-    filter_indexes.update(high)
-    # filter_indexes.update(low)
-    print(f"{len(high)} cluster-high beads removed")
-    # print(f"{len(low)} cluster-low beads removed")
-    meta["cluster-high"] = len(high)
-    # meta["cluster-low"] = len(low)
+    low = knn_indices[data > np.mean(data) + np.std(data) * z_low, 0]
+    filter_indexes.update(low)
+    print(f"{len(low)} cluster-low beads removed")
+    meta["cluster-low"] = len(low)
 
     # Filter weakly-connected components
     n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')
@@ -384,24 +381,15 @@ def knn_merge(knn_indices1, knn_dists1, knn_indices2, knn_dists2):
 ### source: https://umap-learn.readthedocs.io/en/latest/mutual_nn_umap.html ####
 import scipy
 
-def create_knn_matrix(knn_indices, knn_dists, n_neighbors):
+def create_knn_matrix(knn_indices, knn_dists):
     assert knn_indices.shape == knn_dists.shape
-    assert n_neighbors <= knn_indices.shape[1]
-    rows = np.zeros(knn_indices.shape[0] * n_neighbors, dtype=np.int32)
-    cols = np.zeros(knn_indices.shape[0] * n_neighbors, dtype=np.int32)
-    vals = np.zeros(knn_indices.shape[0] * n_neighbors, dtype=np.float32)
+    assert np.all(knn_indices >= 0) and np.all(knn_dists >= 0)
     
-    pos = 0
-    for i, indices in enumerate(knn_indices):
-        for j, index in enumerate(indices[:n_neighbors]):
-            if index == -1:
-                continue
-            rows[pos] = i 
-            cols[pos] = index
-            vals[pos] = knn_dists[i][j]
-            pos += 1
-    
+    rows = np.repeat(knn_indices[:,0], knn_indices.shape[1])
+    cols = knn_indices.ravel()
+    vals = knn_dists.ravel()
     knn_matrix = scipy.sparse.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
+
     return knn_matrix
     
 def min_spanning_tree(knn_matrix):

@@ -275,6 +275,7 @@ def knn_filter(knn_indices, knn_dists):
 
     # Filter high clustering coefficients
     z_high = 3
+    z_low = -3
     knn_matrix = create_knn_matrix(knn_indices, knn_dists, knn_indices.shape[1])
     G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
     clustering = nx.clustering(G, nodes=None, weight=None)
@@ -284,9 +285,13 @@ def knn_filter(knn_indices, knn_dists):
     axes[1,1].set_title('Local clustering coefficient')
     
     high = knn_indices[data > np.mean(data) + np.std(data) * z_high, 0]
+    low = knn_indices[data > np.mean(data) + np.std(data) * z_low, 0]
     filter_indexes.update(high)
-    print(f"{len(low)} cluster-high beads removed")
+    filter_indexes.update(low)
+    print(f"{len(high)} cluster-high beads removed")
+    print(f"{len(low)} cluster-low beads removed")
     meta["cluster-high"] = len(high)
+    meta["cluster-low"] = len(low)
 
     # Filter weakly-connected components
     n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')

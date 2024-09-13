@@ -261,9 +261,12 @@ def knn_filter(knn_indices, knn_dists):
             ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_low}z: {zval:.2f}', color='red', ha='right')
     
     # Filter beads with far nearest neighbors
+    print('Filter far nearest neighbors')
+    z_threshold = 3
+    z_high = np.mean(knn_indices[:, 1]) + z_threshold * np.std(knn_indices[:, 1])
     threshold = 0.9
 
-    high = knn_indices[data >= threshold, 0]
+    high = knn_indices[knn_indices[:, 1] >= threshold, 0]
     filter_indexes.update(high)
     print(f"{len(high)} far-NN beads removed")
     meta["far-NN"] = len(high)
@@ -274,6 +277,7 @@ def knn_filter(knn_indices, knn_dists):
     axes[0,1].set_title(f'Furthest neighbor distance ({knn_dists.shape[1]})')
 
     # Filter low clustering coefficients
+    print('Filter low clustering coefficients')
     z_low = -3
     clustering_neighbors = 20
     knn_matrix = create_knn_matrix(knn_indices[:, :clustering_neighbors], knn_dists[:, :clustering_neighbors], clustering_neighbors)
@@ -290,11 +294,11 @@ def knn_filter(knn_indices, knn_dists):
     meta["cluster-low"] = len(low)
 
     # Filter weakly-connected components
-    n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')
-    wcc = np.where(labels != np.bincount(labels).argmax())[0]
-    filter_indexes.update(wcc)
-    print(f"{len(wcc)} WCC beads removed")
-    meta["wcc"] = len(wcc)
+    # n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')
+    # wcc = np.where(labels != np.bincount(labels).argmax())[0]
+    # filter_indexes.update(wcc)
+    # print(f"{len(wcc)} WCC beads removed")
+    # meta["wcc"] = len(wcc)
      
     fig.tight_layout()
     return filter_indexes, fig, meta

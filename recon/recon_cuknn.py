@@ -125,7 +125,7 @@ sys.stdout.flush()
 ### Compute the KNN ############################################################
 
 print("\nComputing the KNN...")
-knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors)
+knn_indices1, knn_dists1 = cuknn_descent(np.log1p(mat), n_neighbors)
 
 print("\nFiltering the KNN...")
 filter_indexes, fig, meta = knn_filter(knn_indices1, knn_dists1)

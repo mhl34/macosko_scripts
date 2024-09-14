@@ -277,21 +277,21 @@ def knn_filter(knn_indices, knn_dists):
     axes[0,1].set_title(f'Furthest neighbor distance ({knn_dists.shape[1]})')
 
     # Filter low clustering coefficients
-    print('Filter low clustering coefficients')
-    z_low = -3
-    clustering_neighbors = 20
-    knn_matrix = create_knn_matrix(knn_indices[:, :clustering_neighbors], knn_dists[:, :clustering_neighbors], clustering_neighbors)
-    G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
-    clustering = nx.clustering(G, nodes=None, weight=None)
-    data = [clustering[key] for key in sorted(clustering.keys())]
-    hist_z(axes[1,1], data, z_low=z_low)
-    axes[1,1].set_xlabel('Clustering coefficient')
-    axes[1,1].set_title('Local clustering coefficient')
+    # print('Filter low clustering coefficients')
+    # z_low = -3
+    # clustering_neighbors = 20
+    # knn_matrix = create_knn_matrix(knn_indices[:, :clustering_neighbors], knn_dists[:, :clustering_neighbors], clustering_neighbors)
+    # G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
+    # clustering = nx.clustering(G, nodes=None, weight=None)
+    # data = [clustering[key] for key in sorted(clustering.keys())]
+    # hist_z(axes[1,1], data, z_low=z_low)
+    # axes[1,1].set_xlabel('Clustering coefficient')
+    # axes[1,1].set_title('Local clustering coefficient')
     
-    low = knn_indices[data > np.mean(data) + np.std(data) * z_low, 0]
-    filter_indexes.update(low)
-    print(f"{len(low)} cluster-low beads removed")
-    meta["cluster-low"] = len(low)
+    # low = knn_indices[data > np.mean(data) + np.std(data) * z_low, 0]
+    # filter_indexes.update(low)
+    # print(f"{len(low)} cluster-low beads removed")
+    # meta["cluster-low"] = len(low)
 
     # Filter weakly-connected components
     # n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')

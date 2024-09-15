@@ -132,16 +132,18 @@ l2 = int(low)
 h1 = int(high)
 h2 = int(high)
 
-print('filter matrix')
-df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
-df.sb1_index -= 1 # convert from 1- to 0-indexed
-df.sb2_index -= 1 # convert from 1- to 0-indexed
-sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
-sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
-df, uniques1, uniques2, _, _ = connection_filter(df)
-mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
+# print('filter matrix')
+# df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
+# df.sb1_index -= 1 # convert from 1- to 0-indexed
+# df.sb2_index -= 1 # convert from 1- to 0-indexed
+# sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
+# sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
+# df, uniques1, uniques2, _, _ = connection_filter(df)
+# mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 
 # scipy.sparse.save_npz(f"{dropout}/mat.npz", mat)
+print('load in matrix')
+mat = scipy.sparse.load_npz(f'{dropout}/mat.npz')
     
 # connectivity = "full_tree"
 

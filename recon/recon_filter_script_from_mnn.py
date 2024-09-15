@@ -180,7 +180,7 @@ with open(f'{dropout}/embedding_mat_mnn_150_{n_epochs}_{dropout}.npz', 'wb') as 
 # hexmap(embeddings, f"{dropout}/umap_mnn_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")
 
 sbs = [sb2["sb2"][i] for i in uniques2]
-assert embedding.shape[0] == len(sbs)
+assert embeddings.shape[0] == len(sbs)
 with open(os.path.join(f"{dropout}/Puck_{n_epochs}_cuknn.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):

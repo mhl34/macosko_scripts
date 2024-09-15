@@ -166,9 +166,9 @@ knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors,
 with open(f'{dropout}/mnn_output_{n_epochs}_150_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
-knn_output = np.load(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz')
-knn_indices = knn_output['mnn_indices']
-knn_dists = knn_output['mnn_dists']
+# knn_output = np.load(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz')
+# knn_indices = knn_output['mnn_indices']
+# knn_dists = knn_output['mnn_dists']
 
 print('umap')
 init = "spectral"

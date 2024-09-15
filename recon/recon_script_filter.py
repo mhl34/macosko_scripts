@@ -181,12 +181,15 @@ with open(f'{dropout}/embedding_mat_mnn_150_{n_epochs}_{dropout}.npz', 'wb') as 
 
 sbs = [sb2["sb2"][i] for i in uniques2]
 assert embedding.shape[0] == len(sbs)
-with open(os.path.join(f"{dropout}/Puck_{n_epochs}_cuknn.csv"), mode='w', newline='') as file:
+with open(os.path.join(f"{dropout}/Puck_{n_epochs}_knn_150.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):
         writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
 
+hexmap(embeddings, f"{dropout}/umap_{n_epochs}_knn_150")
+
 print("\nDone!")
-    
+
+
 # hexmap(embeddings, f"{dropout}/outputs/umap_{n_epochs}_{connectivity}_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}" if mnn else f"{dropout}/outputs/umap_{n_epochs}_knn_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}")
 

@@ -176,7 +176,7 @@ knn_dists = knn_output['mnn_dists']
 
 print('umap')
 init = "spectral"
-embeddings = my_cuumap(mat, n_epochs, init=init)
+embeddings = my_umap(mat, 20000, init=init)
 
 with open(f'{dropout}/embedding_mat_mnn_150_{n_epochs}_{dropout}.npz', 'wb') as f:
     np.savez(f, embeddings = embeddings)

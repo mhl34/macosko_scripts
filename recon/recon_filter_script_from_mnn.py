@@ -146,7 +146,7 @@ h2 = int(high)
 uniques2 = np.load(f'{dropout}/uniques2_{dropout}.npz')['uniques2']
 # scipy.sparse.save_npz(f"{dropout}/mat.npz", mat)
 # print('load in matrix')
-# mat = scipy.sparse.load_npz(f'{dropout}/mat.npz')
+mat = scipy.sparse.load_npz(f'{dropout}/mat.npz')
     
 # connectivity = "full_tree"
 

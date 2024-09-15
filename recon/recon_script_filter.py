@@ -151,8 +151,6 @@ print('knn descent (150)')
 n_neighbors = 45
 n_neighbors2 = 150
 knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors2, metric = "cosine")
-knn_indices = knn_indices[:, :45]
-knn_dists = knn_dists[:, :45]
 with open(f'{dropout}/knn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 # with open(f'{dropout}/intermediate_files/knn_output_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
@@ -162,7 +160,9 @@ with open(f'{dropout}/knn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
 print('mutual neighbors')
-knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors)
+knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors2, n_neighbors2)
+knn_indices = knn_indices[:, :45]
+knn_dists = knn_dists[:, :45]
 with open(f'{dropout}/mnn_output_{n_epochs}_150_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 

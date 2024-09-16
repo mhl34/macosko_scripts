@@ -22,7 +22,7 @@ from scipy import stats
 # parameters
 min_dist = 0.1
 init = 'spectral'
-n_epochs = 100000
+n_epochs = 20000
 
 def cuknn_descent(mat, n_neighbors, metric="cosine"):
     """

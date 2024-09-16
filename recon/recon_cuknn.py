@@ -144,7 +144,7 @@ knn_indices1, knn_dists1 = knn_descent(np.log1p(mat), n_neighbors2)
 if connectivity != "none":
     print("\Creating the MNN...")
     n_neighbors_max = 45
-    mnn_indices, mnn_dists = mutual_nn_nearest(knn_indices[:,:n_neighbors], knn_dists[:,:n_neighbors], n_neighbors)
+    mnn_indices, mnn_dists = mutual_nn_nearest(knn_indices[:,:n_neighbors_max], knn_dists[:,:n_neighbors_max], n_neighbors_max)
     np.savez_compressed(os.path.join(out_dir, "mnn.npz"), indices=mnn_indices, dists=mnn_dists)
     assert np.all(np.isfinite(mnn_indices))
     assert np.all(np.isfinite(mnn_dists))

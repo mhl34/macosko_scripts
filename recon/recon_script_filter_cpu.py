@@ -22,7 +22,7 @@ from scipy import stats
 # parameters
 min_dist = 0.1
 init = 'spectral'
-n_epochs = 20000
+n_epochs = 100000
 
 def cuknn_descent(mat, n_neighbors, metric="cosine"):
     """
@@ -57,9 +57,8 @@ def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, l
     reducer = UMAP(n_components = 2,
                    metric = metric,
                    spread = 1.0,
-                   random_state = 0,
+                   random_state = None,
                    learning_rate = learning_rate,
-                   repulsion_strength = repulsion_strength,
                    verbose = True,
                    precomputed_knn = (knn_indices, knn_dists),
                    n_neighbors = n_neighbors,
@@ -160,10 +159,8 @@ with open(f'{dropout}/knn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
 print('mutual neighbors')
-knn_indices, knn_dists =  mutual_nn_nearest(knn_indices, knn_dists, n_neighbors2, n_neighbors2)
-knn_indices = knn_indices[:, :45]
-knn_dists = knn_dists[:, :45]
-with open(f'{dropout}/mnn_output_{n_epochs}_150_{dropout}.npz', 'wb') as f:
+knn_indices, knn_dists = find_path_neighbors(create_mnn(knn_indices, knn_dists, n_neighbors), n_neighbors, n_jobs=-1)
+with open(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 
 # knn_output = np.load(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz')
@@ -192,3 +189,4 @@ print("\nDone!")
 
 
 # hexmap(embeddings, f"{dropout}/outputs/umap_{n_epochs}_{connectivity}_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}" if mnn else f"{dropout}/outputs/umap_{n_epochs}_knn_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}")
+

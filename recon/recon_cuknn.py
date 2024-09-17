@@ -159,7 +159,8 @@ with open(f'{dropout}/knn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
 #     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
 
 print('mutual neighbors')
-knn_indices, knn_dists = find_path_neighbors(create_mnn(knn_indices, knn_dists, n_neighbors), n_neighbors, n_jobs=-1)
+# knn_indices, knn_dists = find_path_neighbors(create_mnn(knn_indices, knn_dists, n_neighbors), n_neighbors, n_jobs=-1)
+knn_indices, knn_dists = mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
 with open(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
     np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
 

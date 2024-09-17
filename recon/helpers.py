@@ -1,7 +1,9 @@
+import os
 import math
+import heapq
 import numpy as np
 import pandas as pd
-import networkx as nx
+import scipy.sparse as sp
 import matplotlib.pyplot as plt
 from functools import reduce
 from collections import Counter
@@ -261,12 +263,13 @@ def knn_filter(knn_indices, knn_dists):
             ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_low}z: {zval:.2f}', color='red', ha='right')
     
     # Filter beads with far nearest neighbors
-    print('Filter far nearest neighbors')
-    z_threshold = 3
-    z_high = np.mean(knn_indices[:, 1]) + z_threshold * np.std(knn_indices[:, 1])
-    threshold = 0.9
+    z_high = 3
+    data = knn_dists[:,1]
+    hist_z(axes[0,0], data, z_high)
+    axes[0,0].set_xlabel(f'Distance')
+    axes[0,0].set_title(f'Nearest neighbor distance')
 
-    high = knn_indices[knn_indices[:, 1] >= threshold, 0]
+    high = knn_indices[data >= np.mean(data) + np.std(data) * z_high, 0]
     filter_indexes.update(high)
     print(f"{len(high)} far-NN beads removed")
     meta["far-NN"] = len(high)
@@ -275,30 +278,46 @@ def knn_filter(knn_indices, knn_dists):
     hist_z(axes[0,1], knn_dists[:,-1])
     axes[0,1].set_xlabel(f'Distance')
     axes[0,1].set_title(f'Furthest neighbor distance ({knn_dists.shape[1]})')
+    
+    # Filter too-high or too-low in-edges
+    z_high = 3 ; z_low = -3
+    indexes, data = np.unique(knn_indices, return_counts=True)
+    hist_z(axes[1,0], data, z_high, z_low, bins=np.arange(0, data.max()+1))
+    axes[1,0].set_xlabel('In-edges')
+    axes[1,0].set_title('Number of in-edges')
+    axes[1,0].set_xlim(0, 4*knn_indices.shape[1])
+    
+    high = indexes[data >= np.mean(data) + np.std(data) * z_high]
+    filter_indexes.update(high)
+    print(f"{len(high)} in-high beads removed")
+    meta["in-high"] = len(high)
+    
+    low = indexes[data <= np.mean(data) + np.std(data) * z_low]
+    filter_indexes.update(low)
+    print(f"{len(low)} in-low beads removed")
+    meta["in-low"] = len(low)
 
     # Filter low clustering coefficients
-    # print('Filter low clustering coefficients')
-    # z_low = -3
-    # clustering_neighbors = 20
-    # knn_matrix = create_knn_matrix(knn_indices[:, :clustering_neighbors], knn_dists[:, :clustering_neighbors], clustering_neighbors)
-    # G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
-    # clustering = nx.clustering(G, nodes=None, weight=None)
-    # data = [clustering[key] for key in sorted(clustering.keys())]
-    # hist_z(axes[1,1], data, z_low=z_low)
-    # axes[1,1].set_xlabel('Clustering coefficient')
-    # axes[1,1].set_title('Local clustering coefficient')
+    z_low = -3
+    knn_matrix = create_knn_matrix(knn_indices, knn_dists)
+    G = nx.from_scipy_sparse_array(knn_matrix, create_using=nx.Graph, edge_attribute=None) # undirected, unweighted
+    clustering = nx.clustering(G, nodes=None, weight=None)
+    data = [clustering[key] for key in sorted(clustering.keys())]
+    hist_z(axes[1,1], data, z_low=z_low)
+    axes[1,1].set_xlabel('Clustering coefficient')
+    axes[1,1].set_title('Local clustering coefficient')
     
-    # low = knn_indices[data > np.mean(data) + np.std(data) * z_low, 0]
-    # filter_indexes.update(low)
-    # print(f"{len(low)} cluster-low beads removed")
-    # meta["cluster-low"] = len(low)
+    low = knn_indices[data <= np.mean(data) + np.std(data) * z_low, 0]
+    filter_indexes.update(low)
+    print(f"{len(low)} cluster-low beads removed")
+    meta["cluster-low"] = len(low)
 
     # Filter weakly-connected components
-    # n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')
-    # wcc = np.where(labels != np.bincount(labels).argmax())[0]
-    # filter_indexes.update(wcc)
-    # print(f"{len(wcc)} WCC beads removed")
-    # meta["wcc"] = len(wcc)
+    n_components, labels = sp.csgraph.connected_components(csgraph=knn_matrix, directed=True, connection='strong')
+    wcc = np.where(labels != np.bincount(labels).argmax())[0]
+    filter_indexes.update(wcc)
+    print(f"{len(wcc)} WCC beads removed")
+    meta["wcc"] = len(wcc)
      
     fig.tight_layout()
     return filter_indexes, fig, meta
@@ -382,113 +401,136 @@ def knn_merge(knn_indices1, knn_dists1, knn_indices2, knn_dists2):
 
 ### MNN METHODS ################################################################
 ### source: https://umap-learn.readthedocs.io/en/latest/mutual_nn_umap.html ####
-import scipy
 
 def create_knn_matrix(knn_indices, knn_dists):
     assert knn_indices.shape == knn_dists.shape
-    assert np.all(knn_indices >= 0) and np.all(knn_dists >= 0)
+    assert knn_indices.dtype == np.int32 and knn_dists.dtype == np.float64
+    assert np.max(knn_indices) < len(knn_indices)
+    assert np.array_equal(knn_indices[:,0], np.arange(len(knn_indices)))
+    assert np.all(knn_dists[:,1:] > 0) and not np.any(np.isnan(knn_dists))
     
-    rows = np.repeat(knn_indices[:,0], knn_indices.shape[1])
-    cols = knn_indices.ravel()
-    vals = knn_dists.ravel()
-    knn_matrix = scipy.sparse.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
+    rows = np.repeat(knn_indices[:,0], knn_indices.shape[1]-1)
+    cols = knn_indices[:,1:].ravel()
+    vals = knn_dists[:,1:].ravel()
+    
+    # remove missing elements before constructing matrix
+    remove = (cols < 0) | (vals <= 0) | ~np.isfinite(cols) | ~np.isfinite(vals)
+    rows = rows[~remove]
+    cols = cols[~remove]
+    vals = vals[~remove]
+    if np.sum(remove) > 0:
+        print(f"{np.sum(remove)} values removed during matrix construction")
+    
+    knn_matrix = sp.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
+    
+    return knn_matrix    
 
-    return knn_matrix
-    
 def min_spanning_tree(knn_matrix):
-    Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(knn_matrix)
-    Tcsr = scipy.sparse.coo_matrix(Tcsr)
+    Tcsr = sp.csgraph.minimum_spanning_tree(knn_matrix)
+    Tcsr = sp.coo_matrix(Tcsr)
     weights_tuples = zip(Tcsr.row, Tcsr.col, Tcsr.data)
     sorted_weights_tuples = sorted(weights_tuples, key=lambda tup: tup[2])
     return sorted_weights_tuples 
 
-def create_connected_graph(mutual_nn, knn_indices, knn_dists, n_neighbors):
-    import copy
-    connected_mnn = copy.deepcopy(mutual_nn)
-        
-    # Find the min spanning tree with KNN
-    sorted_weights_tuples = min_spanning_tree(create_knn_matrix(knn_indices, knn_dists))
+# Search to find path neighbors (todo: stop at dist=0)
+def find_new_nn(indices, dists, out_neighbors, i_range):
+    mnn_dists = [] 
+    mnn_indices = []
     
-    # Add edges until graph is connected
-    for pos,(i,j,v) in enumerate(sorted_weights_tuples):
-        connected_mnn[i].add(j)
-        connected_mnn[j].add(i)
-    
-    return connected_mnn  
-
-# Search to find path neighbors
-def find_new_nn(knn_dists, knn_indices_pos, connected_mnn, n_neighbors_max):
-    import heapq
-    new_knn_dists = [] 
-    new_knn_indices = []
-    
-    for i in range(len(knn_dists)): 
-        min_distances = []
+    for i in i_range:
         min_indices = []
+        min_distances = []
         
         heap = [(0,i)] ; heapq.heapify(heap) 
         mapping = {}
         seen = set()
         
-        while(len(min_distances) < n_neighbors_max and len(heap) > 0):
+        while len(min_distances) < out_neighbors and len(heap) > 0:
             dist, nn = heapq.heappop(heap)
-            if nn in seen or nn == -1:
+            if nn in seen or nn < 0:
                 continue
         
-            min_distances.append(dist)
             min_indices.append(nn)
+            min_distances.append(dist)
             seen.add(nn)
             
-            for nn_nn in connected_mnn[nn]:
-                if nn_nn in seen:
+            for nn_i, nn_d in zip(indices[nn], dists[nn]):
+                if nn_i in seen or nn_d <= 0:
                     continue
-                if nn_nn in knn_indices_pos[nn]:
-                    pos = knn_indices_pos[nn][nn_nn]
-                    distance = knn_dists[nn][pos] 
-                else:
-                    pos = knn_indices_pos[nn_nn][nn]
-                    distance = knn_dists[nn_nn][pos] 
-                distance += dist
-                if nn_nn not in mapping or mapping[nn_nn] > distance:
-                    mapping[nn_nn] = distance
-                    heapq.heappush(heap, (distance, nn_nn))
+                distance = dist + nn_d
+                if nn_i not in mapping or distance < mapping[nn_i]:
+                    mapping[nn_i] = distance
+                    heapq.heappush(heap, (distance, nn_i))
             
-        if len(min_distances) < n_neighbors_max:
-            for i in range(n_neighbors_max-len(min_distances)):
+        if len(min_distances) < out_neighbors:
+            for i in range(out_neighbors-len(min_distances)):
                 min_indices.append(-1)
                 min_distances.append(np.inf)
         
-        new_knn_dists.append(min_distances)
-        new_knn_indices.append(min_indices)
+        mnn_indices.append(min_indices)
+        mnn_dists.append(min_distances)
         
-        if i % int(len(knn_dists) / 10) == 0:
-            print("\tcompleted ", i, " / ", len(knn_dists), "epochs")
-    return new_knn_dists, new_knn_indices
+    return np.array(mnn_indices, dtype=np.int32), np.array(mnn_dists)
 
-# Calculate the connected mutual nn graph
-def mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors_max):
-    assert knn_indices.shape == knn_dists.shape
+# Prune non-reciprocated edges and add MST edges
+def create_mnn(knn_indices, knn_dists, in_neighbors):
+    # Create mutual graph
+    print("Creating mutual graph...")
+    knn_matrix = create_knn_matrix(knn_indices, knn_dists).tocsr()
+    lil = knn_matrix.multiply(knn_matrix.transpose()).sqrt().tolil()
+    lil.setdiag(0)
     
-    nearest_n = {} # i -> set(row)
-    mutual_nn = {} # i -> set(row, if reciprocated)
+    # Add MST edges
+    print("Adding MST edges...")
+    sorted_weights_tuples = min_spanning_tree(knn_matrix)
+    for i,j,v in sorted_weights_tuples:
+        lil[i,j] = v
+        lil[j,i] = v
+    del sorted_weights_tuples, knn_matrix
     
-    knn_indices_pos = [None] * len(knn_indices) # i1 -> i2 -> col
-    for i, top_vals in enumerate(knn_indices):
-        nearest_n[i] = set(top_vals)
-        knn_indices_pos[i] = {}
-        for pos, nn in enumerate(top_vals):
-            knn_indices_pos[i][nn] = pos
-    
-    for i, top_vals in enumerate(knn_indices):
-        mutual_nn[i] = set()
-        for nn in top_vals[1:]:
-             if nn != -1 and i in nearest_n[nn]:
-                 mutual_nn[i].add(nn)
+    # Memory-map the data
+    print("Memory-mapping the data...")
+    indices = np.memmap('/dev/shm/indices.bin', dtype='int32', mode='w+', shape=(knn_indices.shape[0],in_neighbors))
+    dists = np.memmap('/dev/shm/dists.bin', dtype='float64', mode='w+', shape=(knn_dists.shape[0],in_neighbors))
+    indices[:] = -1 ; dists[:] = -1
+    for i in range(lil.shape[0]):
+        cols = np.array(lil.rows[i], dtype=np.int32)
+        vals = np.array(lil.data[i], dtype=np.float64)
+        if len(cols) > in_neighbors:
+            inds = np.argpartition(vals, in_neighbors)[:in_neighbors]
+            cols = cols[inds]
+            vals = vals[inds]
 
-    print("Creating connected graph...")
-    connected_mnn = create_connected_graph(mutual_nn, knn_indices, knn_dists, n_neighbors)
+        indices[i, :len(cols)] = cols
+        dists[i, :len(vals)] = vals
     
-    print("Finding new nearest neighbors...")
-    new_knn_dists, new_knn_indices = find_new_nn(knn_dists, knn_indices_pos, connected_mnn, n_neighbors_max)
+    indices.flush() ; dists.flush()
+    import gc ; gc.collect()
+    del indices, dists
+    import gc ; gc.collect()
+    shape = (knn_indices.shape[0], in_neighbors)
+    return shape
     
-    return np.array(new_knn_indices, dtype=np.int32), np.array(new_knn_dists)
+def find_path_neighbors(shape, out_neighbors, n_jobs=-1):
+    print("Finding new path neighbors...")
+    from multiprocessing import Pool
+    if n_jobs < 1:
+        n_jobs = len(os.sched_getaffinity(0))
+        
+    indices = np.memmap('/dev/shm/indices.bin', dtype='int32', mode='r', shape=shape)
+    dists = np.memmap('/dev/shm/dists.bin', dtype='float64', mode='r', shape=shape)
+    ranges = np.array_split(range(len(indices)), n_jobs)
+    with Pool(processes=n_jobs) as pool:
+        results = pool.starmap(find_new_nn, [(indices, dists, out_neighbors, i_range) for i_range in ranges])
+
+    mnn_indices, mnn_dists = zip(*results)
+    mnn_indices = np.vstack(mnn_indices)
+    mnn_dists = np.vstack(mnn_dists)
+    
+    assert mnn_indices.shape == mnn_dists.shape
+    assert mnn_indices.shape[0] == shape[0]
+    assert np.max(mnn_indices) < len(mnn_indices)
+    assert np.all(mnn_indices >= 0) and np.all(mnn_dists >= 0)
+    assert np.array_equal(mnn_indices[:,0], np.arange(len(mnn_indices)))
+    assert mnn_indices.dtype == np.int32 and mnn_dists.dtype == np.float64
+    return mnn_indices, mnn_dists

@@ -1,20 +1,28 @@
-import os
-import gc
-import sys
-import csv
-import json
-import argparse
-import numpy as np
+import cuml
+from cuml.manifold.umap import UMAP as cuUMAP
 import pandas as pd
+import numpy as np
 from scipy.sparse import coo_matrix
-from PyPDF2 import PdfMerger
+import imageio
+from umap import UMAP
+import os
+import scipy
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import normalize
+from tqdm import tqdm
+import pickle
+from scipy import special
+import numba
+import gc
+import argparse
 from helpers import *
-import cupy as cp
+import csv
+from scipy import stats
 
-# os.chdir("/home/nsachdev/recon/data/240609_SL-EXC_0308_A22KHFYLT3/D707-1234")
-# os.chdir("/home/nsachdev/recon/data/240411/H14_1")
-# os.chdir("/home/nsachdev/recon/data/240615_SL-EXG_0144_A22KH5WLT3/D703_D704_D705_D706")
-# os.chdir("/home/nsachdev/recon/data/240609_SL-EXC_0308_A22KHFYLT3/D702-1234_D703_D706_D707-5")
+# parameters
+min_dist = 0.1
+init = 'spectral'
+n_epochs = 100000
 
 def cuknn_descent(mat, n_neighbors, metric="cosine"):
     """
@@ -30,148 +38,46 @@ def cuknn_descent(mat, n_neighbors, metric="cosine"):
     knn_dists, knn_indices = knn_cuml.kneighbors(mat, n_neighbors)
     return knn_indices, knn_dists
 
-def get_args():
-    parser = argparse.ArgumentParser(description='process recon seq data')
-    parser.add_argument("-i", "--in_dir", help="input data folder", type=str, default=".")
-    parser.add_argument("-o", "--out_dir", help="output data folder", type=str, default=".")
-    parser.add_argument("-gs", "--gspath", help="gcloud storage path to cache data output", type=str, default="")
-    parser.add_argument("-u", "--unit", help="define core type to use (CPU or GPU)", type=str, default="CPU")
-
-    parser.add_argument("-n", "--n_neighbors", help="the number of neighboring points used for manifold approximation", type=int, default=45)
-    parser.add_argument("-d", "--min_dist", help="the effective minimum distance between embedded points", type=float, default=0.1)
-    parser.add_argument("-N", "--n_epochs", help="the number of epochs to be used in optimizing the embedding", type=int, default=5000)
-    parser.add_argument("-c", "--connectivity", help="'none', 'min_tree', or 'full_tree'", type=str, default="full_tree")
-    parser.add_argument("-n2", "--n_neighbors2", help="the new NN to pick for MNN", type=int, default=45)
-    
-    args, unknown = parser.parse_known_args()
-    [print(f"WARNING: unknown command-line argument {u}") for u in unknown]
-    return args
-
-args = get_args()
-
-in_dir = args.in_dir             ; print(f"input directory = {in_dir}")
-out_dir = args.out_dir           ; print(f"output directory = {out_dir}")
-gspath = args.gspath             ; print(f"gs:// output path = {gspath}")
-unit = args.unit                 ; print(f"processing unit = {unit}")
-
-n_neighbors = args.n_neighbors   ; print(f"n_neighbors = {n_neighbors}")
-min_dist = args.min_dist         ; print(f"min_dist = {min_dist}")
-n_epochs = args.n_epochs         ; print(f"n_epochs = {n_epochs}")
-connectivity = args.connectivity ; print(f"connectivity = {connectivity}")
-n_neighbors2 = args.n_neighbors2 ; print(f"n_neighbors2 = {n_neighbors2}")
-
-name = f"UMAP_n={n_neighbors}_d={min_dist}"
-
-if connectivity != "none":
-    assert connectivity in ["min_tree", "full_tree"]
-    name += f"_c={connectivity.replace('_', '')}{n_neighbors2}"
-    assert n_neighbors2 <= n_neighbors
-
-print(f"name = {name}")
-out_dir = os.path.join(out_dir, name)
-
-assert all(os.path.isfile(os.path.join(in_dir, file)) for file in ['matrix.csv.gz', 'sb1.csv.gz', 'sb2.csv.gz'])
-os.makedirs(out_dir, exist_ok=True)
-assert os.path.exists(out_dir)
-print(f"output directory = {out_dir}")
-
-# Get the previous embeddings
-print("\nDownloading previous embeddings...")
-file_path = os.path.join(gspath, name, "embeddings.npz")
-print(f"Searching {file_path}...")
-try:
-    import gcsfs
-    with gcsfs.GCSFileSystem().open(file_path, 'rb') as f:
-        data = np.load(f)
-        embeddings = [data[key] for key in data]
-    print(f"{len(embeddings)} previous embeddings found")
-except Exception as e:
-    print(f"Embeddings load error: {str(e)}")
-    print("No previous embeddings found, starting from scratch")
-    embeddings = []
-
-metadata = {}
-
-sys.stdout.flush()
-
-### Load the data ##############################################################
-
-print("\nReading the matrix...")
-df = pd.read_csv(os.path.join(in_dir, 'matrix.csv.gz'), compression='gzip')
-df.sb1_index -= 1 # convert from 1- to 0-indexed
-df.sb2_index -= 1 # convert from 1- to 0-indexed
-sb1 = pd.read_csv(os.path.join(in_dir, 'sb1.csv.gz'), compression='gzip')
-sb2 = pd.read_csv(os.path.join(in_dir, 'sb2.csv.gz'), compression='gzip')
-assert sorted(list(set(df.sb1_index))) == list(range(sb1.shape[0]))
-assert sorted(list(set(df.sb2_index))) == list(range(sb2.shape[0]))
-
-metadata["init"] = {"sb1": sb1.shape[0], "sb2": sb2.shape[0], "umi": sum(df["umi"])}
-fig, axes = uvc(df) ; fig.savefig(os.path.join(out_dir,'uvc.pdf'), format='pdf') ; del fig, axes
-print(f"{sb1.shape[0]} R1 barcodes")
-print(f"{sb2.shape[0]} R2 barcodes")
-
-print("\nFiltering the beads...")
-df, uniques1, uniques2, fig, meta = connection_filter(df)
-fig.savefig(os.path.join(out_dir,'connections.pdf'), format='pdf') ; del fig
-metadata["connection_filter"] = meta ; del meta
-
-# Rows are the beads you wish to recon
-# Columns are the features used for judging similarity
-mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
-del df
-
-sys.stdout.flush()
-
-### Compute the KNN ############################################################
-
-print("\nComputing the KNN...")
-n_neighbors2 = 150
-knn_indices1, knn_dists1 = knn_descent(np.log1p(mat), n_neighbors2)
-
-# print("\nFiltering the KNN...")
-# filter_indexes, fig, meta = knn_filter(knn_indices1, knn_dists1)
-# fig.savefig(os.path.join(out_dir,'knn.pdf'), format='pdf') ; del fig
-# metadata["knn_filter"] = meta ; del meta
-# m = np.array([i not in filter_indexes for i in np.arange(mat.shape[0])], dtype=bool)
-# mat = mat[m,:] ; uniques2 = uniques2[m]
-
-# print("\nRe-computing the KNN...")
-# knn_indices2, knn_dists2 = knn_descent(np.log1p(mat), n_neighbors2)
-# knn_indices, knn_dists = knn_merge(knn_indices1[m,:], knn_dists1[m,:], knn_indices2, knn_dists2)
-# np.savez_compressed(os.path.join(out_dir, "knn.npz"), indices=knn_indices, dists=knn_dists)
-# knn = (knn_indices, knn_dists)
-
-if connectivity != "none":
-    print("\Creating the MNN...")
-    n_neighbors_max = 45
-    mnn_indices, mnn_dists = mutual_nn_nearest(knn_indices[:,:n_neighbors_max], knn_dists[:,:n_neighbors_max], n_neighbors_max)
-    np.savez_compressed(os.path.join(out_dir, "mnn.npz"), indices=mnn_indices, dists=mnn_dists)
-    assert np.all(np.isfinite(mnn_indices))
-    assert np.all(np.isfinite(mnn_dists))
-    n_neighbors = n_neighbors2
-    knn = (mnn_indices, mnn_dists)
-
-print(f"Final matrix dimension: {mat.shape}")
-print(f"Final matrix size: {mat.data.nbytes/1024/1024:.2f} MiB")
-
-### UMAP TIME ##################################################################
-
-if unit.upper() == "CPU":
-    from umap import UMAP
-elif unit.upper() == "GPU":
-    from cuml.manifold.umap import UMAP
-    
-else:
-    exit(f"Unrecognized --unit flag {unit}")
-
-def my_umap(mat, knn, n_epochs, init="spectral"):
+def hexmap(embedding, plot_name = None):
+    """
+    plotting with overlaps
+    """
+    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+    x, y = embedding[:, 0], embedding[:, 1]
+    hb = ax.hexbin(x, y, cmap='viridis')
+    ax.axis('equal')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    if plot_name:
+        plt.savefig(f"{plot_name}.png")
+        
+def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1):
     reducer = UMAP(n_components = 2,
-                   metric = "cosine",
+                   metric = metric,
                    spread = 1.0,
                    random_state = None,
+                   learning_rate = learning_rate,
                    verbose = True,
-                   
-                   precomputed_knn = knn,
+                   precomputed_knn = (knn_indices, knn_dists),
+                   n_neighbors = n_neighbors,
+                   min_dist = min_dist,
+                   n_epochs = n_epochs,
+                   init = init
+                  )
+    embedding = reducer.fit_transform(np.log1p(mat))
+    return(embedding)
+        
+def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1):
+    reducer = cuUMAP(n_components = 2,
+                   metric = metric,
+                   spread = 1.0,
+                   random_state = None,
+                   learning_rate = learning_rate,
+                   repulsion_strength = repulsion_strength,
+                   verbose = True,
+                   precomputed_knn = (knn_indices, knn_dists),
                    n_neighbors = n_neighbors,
                    min_dist = min_dist,
                    n_epochs = n_epochs,
@@ -180,60 +86,106 @@ def my_umap(mat, knn, n_epochs, init="spectral"):
     embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)
 
-print("\nRunning UMAP...")
-if unit.upper() == "CPU":
-    embeddings.append(my_umap(mat, knn, n_epochs=1000))
-    for i in range(int(np.ceil(n_epochs/1000))-1):
-        embeddings.append(my_umap(mat, knn, init=embeddings[-1], n_epochs=1000))
-elif unit.upper() == "GPU":
-    embeddings.append(my_umap(mat, knn, n_epochs=n_epochs))
+def create_knn_matrix(knn_indices, knn_dists, n_neighbors):
+    assert knn_indices.shape == knn_dists.shape
+    assert n_neighbors <= knn_indices.shape[1]
+    rows = np.zeros(knn_indices.shape[0] * n_neighbors, dtype=np.int32)
+    cols = np.zeros(knn_indices.shape[0] * n_neighbors, dtype=np.int32)
+    vals = np.zeros(knn_indices.shape[0] * n_neighbors, dtype=np.float32)
+    
+    pos = 0
+    for i, indices in enumerate(knn_indices):
+        for j, index in enumerate(indices[:n_neighbors]):
+            if index == -1:
+                continue
+            rows[pos] = i 
+            cols[pos] = index
+            vals[pos] = knn_dists[i][j]
+            pos += 1
+    
+    knn_matrix = scipy.sparse.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
+    return knn_matrix
 
-### WRITE RESULTS ##############################################################
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--dropout', dest='dropout', help='dropout rate')      # option that takes a value
+parser.add_argument('-mnn', action='store_true', dest='mnn', help='use mnn') # use
+parser.add_argument('-n', '--n_neighbors', dest = 'n_neighbors', default = 45, help='number of neighbors')
+parser.add_argument('-c', action='store_true', dest='cache', help='use previous run')
+parser.add_argument('-lt', '--low_threshold', dest='low', default = 10, help='low number of connections')
+parser.add_argument('-ht', '--high_threshold', dest='high', default = 3000, help='high number of connections')
+parser.add_argument('-rd_sb1', dest='rd_sb1', default = 0, help='random dropout of x percentage of sb1 beads')
+parser.add_argument('-rd_sb2', dest='rd_sb2', default = 0, help='random dropout of x percentage of sb2 beads')
 
-print("\nWriting results...")
-embedding = embeddings[-1]
+args = parser.parse_args()
+dropout = args.dropout
+mnn = args.mnn
+n_neighbors = args.n_neighbors
+cache = args.cache
+low = args.low
+high = args.high
+rd_sb1 = float(args.rd_sb1)
+rd_sb2 = float(args.rd_sb2)
 
-# Save the embeddings
-np.savez_compressed(os.path.join(out_dir, "embeddings.npz"), *embeddings)
+l1 = int(low)
+l2 = int(low)
+h1 = int(high)
+h2 = int(high)
 
-# Create the Puck file
+print('filter matrix')
+df = pd.read_csv(f'{dropout}/matrix.csv.gz', compression='gzip')
+df.sb1_index -= 1 # convert from 1- to 0-indexed
+df.sb2_index -= 1 # convert from 1- to 0-indexed
+sb1 = pd.read_csv(f'{dropout}/sb1.csv.gz', compression='gzip')
+sb2 = pd.read_csv(f'{dropout}/sb2.csv.gz', compression='gzip')
+df, uniques1, uniques2, _, _ = connection_filter(df)
+mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
+
+scipy.sparse.save_npz(f"{dropout}/mat.npz", mat)
+    
+connectivity = "full_tree"
+
+# print('cuknn descent')
+# knn_indices, knn_dists = cuknn_descent(np.log1p(mat), n_neighbors, metric = "cosine")
+print('knn descent (150)')
+n_neighbors = 45
+n_neighbors2 = 150
+knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors2, metric = "cosine")
+with open(f'{dropout}/knn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
+    np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
+# with open(f'{dropout}/intermediate_files/knn_output_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}.npz', 'wb') as f:
+#     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
+
+# with open(f'{dropout}/knn_output_cuknn_{dropout}.npz', 'wb') as f:
+#     np.savez(f, knn_indices = knn_indices, knn_dists = knn_dists)
+
+print('mutual neighbors')
+knn_indices, knn_dists = find_path_neighbors(create_mnn(knn_indices, knn_dists, n_neighbors), n_neighbors, n_jobs=-1)
+with open(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
+    np.savez(f, mnn_indices = knn_indices, mnn_dists = knn_dists)
+
+# knn_output = np.load(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz')
+# knn_indices = knn_output['mnn_indices']
+# knn_dists = knn_output['mnn_dists']
+
+print('umap')
+init = "spectral"
+embeddings = my_cuumap(mat, n_epochs, init=init)
+
+with open(f'{dropout}/embedding_mat_mnn_150_{n_epochs}_{dropout}.npz', 'wb') as f:
+    np.savez(f, embeddings = embeddings)
+
+# hexmap(embeddings, f"{dropout}/umap_mnn_{n_epochs}_cuknn" if mnn else f"{dropout}/umap_{n_epochs}_cuknn")
+
 sbs = [sb2["sb2"][i] for i in uniques2]
 assert embedding.shape[0] == len(sbs)
-with open(os.path.join(out_dir, "Puck.csv"), mode='w', newline='') as file:
+with open(os.path.join(f"{dropout}/Puck_{n_epochs}_knn_150.csv"), mode='w', newline='') as file:
     writer = csv.writer(file)
     for i in range(len(sbs)):
-        writer.writerow([sbs[i], embedding[i,0], embedding[i,1]])
+        writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])
 
-# Plot the umap
-title = f"umap hexbin ({embedding.shape[0]:} anchor beads) [{(len(embeddings))*1000} epochs]"
-fig, ax = hexmap(embedding, title)
-fig.savefig(os.path.join(out_dir, "umap.pdf"), dpi=200)
-
-# Plot the intermediate embeddings
-fig, axes = hexmaps(embeddings, titles=[(i+1)*1000 for i in range(len(embeddings))])
-fig.savefig(os.path.join(out_dir, "umaps.pdf"), dpi=200)
-
-# Plot the convergence
-if len(embeddings) > 1:
-    fig, axes = convergence_plot(embeddings)
-    fig.savefig(os.path.join(out_dir, "convergence.pdf"), dpi=200) ; del fig
-
-# Make summary pdf
-names = ["umap", "connections", "knn", "uvc", "convergence", "umaps"]
-paths = [os.path.join(out_dir, n+".pdf") for n in names]
-files = [p for p in paths if os.path.isfile(p)]
-if len(files) > 0:
-    merger = PdfMerger()
-
-    for file_name in files:
-        merger.append(file_name)
-
-    merger.write(os.path.join(out_dir, "summary.pdf"))
-    merger.close()
-    [os.remove(file) for file in files]
-
-# Write the metadata
-with open(os.path.join(out_dir, "metadata.json"), 'w') as file:
-    json.dump(metadata, file)
+hexmap(embeddings, f"{dropout}/umap_{n_epochs}_knn_150")
 
 print("\nDone!")
+
+
+# hexmap(embeddings, f"{dropout}/outputs/umap_{n_epochs}_{connectivity}_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}" if mnn else f"{dropout}/outputs/umap_{n_epochs}_knn_rd_sb1_{rd_sb1}_rd_sb2_{rd_sb2}")

@@ -426,111 +426,149 @@ def create_knn_matrix(knn_indices, knn_dists):
     return knn_matrix    
 
 def min_spanning_tree(knn_matrix):
-    Tcsr = sp.csgraph.minimum_spanning_tree(knn_matrix)
-    Tcsr = sp.coo_matrix(Tcsr)
+    Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(knn_matrix)
+    Tcsr = scipy.sparse.coo_matrix(Tcsr)
     weights_tuples = zip(Tcsr.row, Tcsr.col, Tcsr.data)
     sorted_weights_tuples = sorted(weights_tuples, key=lambda tup: tup[2])
     return sorted_weights_tuples 
 
-# Search to find path neighbors (todo: stop at dist=0)
-def find_new_nn(indices, dists, out_neighbors, i_range):
-    mnn_dists = [] 
-    mnn_indices = []
+def create_connected_graph(mutual_nn, total_mutual_nn, knn_indices, knn_dists, n_neighbors, connectivity):
+    import copy
+    connected_mnn = copy.deepcopy(mutual_nn)
+    assert connectivity in ["min_tree", "full_tree"] # "nearest" produced np.inf
     
-    for i in i_range:
-        min_indices = []
+    if connectivity == "nearest":
+        for i in range(len(knn_indices)): 
+            if len(mutual_nn[i]) == 0:
+                first_nn = knn_indices[i][1]
+                if first_nn != -1:
+                    connected_mnn[i].add(first_nn) 
+                    connected_mnn[first_nn].add(i) 
+                    total_mutual_nn += 1
+        return connected_mnn
+    
+    # Create graph for mutual NN
+    rows = np.zeros(total_mutual_nn, dtype=np.int32)
+    cols = np.zeros(total_mutual_nn, dtype=np.int32)
+    vals = np.zeros(total_mutual_nn, dtype=np.float32)
+    pos = 0
+    for i in connected_mnn:
+        for j in connected_mnn[i]:
+            rows[pos] = i 
+            cols[pos] = j
+            vals[pos] = 1
+            pos += 1
+    graph = scipy.sparse.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
+    
+    # Find number of connected components
+    n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=graph, directed=True, return_labels=True, connection='strong')
+    print(f"connected_components: {n_components}")
+    label_mapping = {i:[] for i in range(n_components)}
+    
+    for index, component in enumerate(labels):
+        label_mapping[component].append(index)
+    
+    # Find the min spanning tree with KNN
+    sorted_weights_tuples = min_spanning_tree(create_knn_matrix(knn_indices, knn_dists, n_neighbors))
+    
+    # Add edges until graph is connected
+    for pos,(i,j,v) in enumerate(sorted_weights_tuples):
+        
+        if connectivity == "full_tree":
+            connected_mnn[i].add(j)
+            connected_mnn[j].add(i) 
+          
+        elif connectivity == "min_tree" and labels[i] != labels[j]:
+            if len(label_mapping[labels[i]]) < len(label_mapping[labels[j]]):
+                i, j = j, i
+              
+            connected_mnn[i].add(j)
+            connected_mnn[j].add(i)
+            j_pos = label_mapping[labels[j]]
+            labels[j_pos] = labels[i]
+            label_mapping[labels[i]].extend(j_pos)
+    
+    return connected_mnn  
+
+# Search to find path neighbors
+def find_new_nn(knn_indices, knn_dists, knn_indices_pos, connected_mnn, n_neighbors_max):
+    import heapq
+    new_knn_dists = [] 
+    new_knn_indices = []
+    
+    for i in range(len(knn_indices)): 
         min_distances = []
+        min_indices = []
         
-        heap = [(0,i)] ; heapq.heapify(heap) 
+        heap = [(0,i)]
         mapping = {}
+              
         seen = set()
-        
-        while len(min_distances) < out_neighbors and len(heap) > 0:
+        heapq.heapify(heap) 
+        while(len(min_distances) < n_neighbors_max and len(heap) >0):
             dist, nn = heapq.heappop(heap)
-            if nn in seen or nn < 0:
+            if nn == -1:
                 continue
-        
-            min_indices.append(nn)
-            min_distances.append(dist)
-            seen.add(nn)
             
-            for nn_i, nn_d in zip(indices[nn], dists[nn]):
-                if nn_i in seen or nn_d <= 0:
-                    continue
-                distance = dist + nn_d
-                if nn_i not in mapping or distance < mapping[nn_i]:
-                    mapping[nn_i] = distance
-                    heapq.heappush(heap, (distance, nn_i))
+            if nn not in seen:
+                min_distances.append(dist)
+                min_indices.append(nn)
+                seen.add(nn)
+                neighbor = connected_mnn[nn]
+                
+                for nn_nn in neighbor:
+                    if nn_nn not in seen:
+                        distance = 0
+                        if nn_nn in knn_indices_pos[nn]:
+                            pos = knn_indices_pos[nn][nn_nn]
+                            distance = knn_dists[nn][pos] 
+                        else:
+                            pos = knn_indices_pos[nn_nn][nn]
+                            distance = knn_dists[nn_nn][pos] 
+                        distance += dist
+                        if nn_nn not in mapping:
+                            mapping[nn_nn] = distance
+                            heapq.heappush(heap, (distance, nn_nn))
+                        elif mapping[nn_nn] > distance:
+                            mapping[nn_nn] = distance
+                            heapq.heappush(heap, (distance, nn_nn))
             
-        if len(min_distances) < out_neighbors:
-            for i in range(out_neighbors-len(min_distances)):
+        if len(min_distances) < n_neighbors_max:
+            for i in range(n_neighbors_max-len(min_distances)):
                 min_indices.append(-1)
                 min_distances.append(np.inf)
         
-        mnn_indices.append(min_indices)
-        mnn_dists.append(min_distances)
+        new_knn_dists.append(min_distances)
+        new_knn_indices.append(min_indices)
         
-    return np.array(mnn_indices, dtype=np.int32), np.array(mnn_dists)
+        if i % int(len(knn_dists) / 10) == 0:
+            print("\tcompleted ", i, " / ", len(knn_dists), "epochs")
+    return new_knn_dists, new_knn_indices
 
-# Prune non-reciprocated edges and add MST edges
-def create_mnn(knn_indices, knn_dists, in_neighbors):
-    # Create mutual graph
-    print("Creating mutual graph...")
-    knn_matrix = create_knn_matrix(knn_indices, knn_dists).tocsr()
-    lil = knn_matrix.multiply(knn_matrix.transpose()).sqrt().tolil()
-    lil.setdiag(0)
+# Calculate the connected mutual nn graph
+def mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors_max, connectivity):
+    mutual_nn = {}
+    nearest_n = {}
     
-    # Add MST edges
-    print("Adding MST edges...")
-    sorted_weights_tuples = min_spanning_tree(knn_matrix)
-    for i,j,v in sorted_weights_tuples:
-        lil[i,j] = v
-        lil[j,i] = v
-    del sorted_weights_tuples, knn_matrix
+    knn_indices_pos = [None] * len(knn_indices)
+    for i, top_vals in enumerate(knn_indices):
+        nearest_n[i] = set(top_vals)
+        knn_indices_pos[i] = {}
+        for pos, nn in enumerate(top_vals):
+            knn_indices_pos[i][nn] = pos
     
-    # Memory-map the data
-    print("Memory-mapping the data...")
-    indices = np.memmap('/dev/shm/indices.bin', dtype='int32', mode='w+', shape=(knn_indices.shape[0],in_neighbors))
-    dists = np.memmap('/dev/shm/dists.bin', dtype='float64', mode='w+', shape=(knn_dists.shape[0],in_neighbors))
-    indices[:] = -1 ; dists[:] = -1
-    for i in range(lil.shape[0]):
-        cols = np.array(lil.rows[i], dtype=np.int32)
-        vals = np.array(lil.data[i], dtype=np.float64)
-        if len(cols) > in_neighbors:
-            inds = np.argpartition(vals, in_neighbors)[:in_neighbors]
-            cols = cols[inds]
-            vals = vals[inds]
+    total_mutual_nn = 0
+    for i, top_vals in enumerate(knn_indices):
+        mutual_nn[i] = set()
+        for ind, nn in enumerate(top_vals):
+             if nn != -1 and (i in nearest_n[nn] and i != nn):
+                 mutual_nn[i].add(nn)
+                 total_mutual_nn += 1
 
-        indices[i, :len(cols)] = cols
-        dists[i, :len(vals)] = vals
+    print("Creating connected graph...")
+    connected_mnn = create_connected_graph(mutual_nn, total_mutual_nn, knn_indices, knn_dists, n_neighbors, connectivity)
     
-    indices.flush() ; dists.flush()
-    import gc ; gc.collect()
-    del indices, dists
-    import gc ; gc.collect()
-    shape = (knn_indices.shape[0], in_neighbors)
-    return shape
+    print("Finding new nearest neighbors...")
+    new_knn_dists, new_knn_indices = find_new_nn(knn_indices, knn_dists, knn_indices_pos, connected_mnn, n_neighbors_max)
     
-def find_path_neighbors(shape, out_neighbors, n_jobs=-1):
-    print("Finding new path neighbors...")
-    from multiprocessing import Pool
-    if n_jobs < 1:
-        n_jobs = len(os.sched_getaffinity(0))
-        
-    indices = np.memmap('/dev/shm/indices.bin', dtype='int32', mode='r', shape=shape)
-    dists = np.memmap('/dev/shm/dists.bin', dtype='float64', mode='r', shape=shape)
-    ranges = np.array_split(range(len(indices)), n_jobs)
-    with Pool(processes=n_jobs) as pool:
-        results = pool.starmap(find_new_nn, [(indices, dists, out_neighbors, i_range) for i_range in ranges])
-
-    mnn_indices, mnn_dists = zip(*results)
-    mnn_indices = np.vstack(mnn_indices)
-    mnn_dists = np.vstack(mnn_dists)
-    
-    assert mnn_indices.shape == mnn_dists.shape
-    assert mnn_indices.shape[0] == shape[0]
-    assert np.max(mnn_indices) < len(mnn_indices)
-    assert np.all(mnn_indices >= 0) and np.all(mnn_dists >= 0)
-    assert np.array_equal(mnn_indices[:,0], np.arange(len(mnn_indices)))
-    assert mnn_indices.dtype == np.int32 and mnn_dists.dtype == np.float64
-    return mnn_indices, mnn_dists
+    return np.array(new_knn_indices, dtype=np.int32), np.array(new_knn_dists)

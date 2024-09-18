@@ -4,6 +4,7 @@ import heapq
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+import scipy
 import matplotlib.pyplot as plt
 from functools import reduce
 from collections import Counter
@@ -426,8 +427,8 @@ def create_knn_matrix(knn_indices, knn_dists):
     return knn_matrix    
 
 def min_spanning_tree(knn_matrix):
-    Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(knn_matrix)
-    Tcsr = scipy.sparse.coo_matrix(Tcsr)
+    Tcsr = sp.csgraph.minimum_spanning_tree(knn_matrix)
+    Tcsr = sp.coo_matrix(Tcsr)
     weights_tuples = zip(Tcsr.row, Tcsr.col, Tcsr.data)
     sorted_weights_tuples = sorted(weights_tuples, key=lambda tup: tup[2])
     return sorted_weights_tuples 
@@ -458,10 +459,10 @@ def create_connected_graph(mutual_nn, total_mutual_nn, knn_indices, knn_dists, n
             cols[pos] = j
             vals[pos] = 1
             pos += 1
-    graph = scipy.sparse.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
+    graph = sp.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
     
     # Find number of connected components
-    n_components, labels = scipy.sparse.csgraph.connected_components(csgraph=graph, directed=True, return_labels=True, connection='strong')
+    n_components, labels = sp.csgraph.connected_components(csgraph=graph, directed=True, return_labels=True, connection='strong')
     print(f"connected_components: {n_components}")
     label_mapping = {i:[] for i in range(n_components)}
     

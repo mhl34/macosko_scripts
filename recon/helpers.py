@@ -470,7 +470,7 @@ def create_connected_graph(mutual_nn, total_mutual_nn, knn_indices, knn_dists, n
         label_mapping[component].append(index)
     
     # Find the min spanning tree with KNN
-    sorted_weights_tuples = min_spanning_tree(create_knn_matrix(knn_indices, knn_dists, n_neighbors))
+    sorted_weights_tuples = min_spanning_tree(create_knn_matrix(knn_indices, knn_dists))
     
     # Add edges until graph is connected
     for pos,(i,j,v) in enumerate(sorted_weights_tuples):

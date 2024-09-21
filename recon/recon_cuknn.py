@@ -160,7 +160,8 @@ with open(f'{dropout}/knn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:
 
 print('mutual neighbors')
 # knn_indices, knn_dists = find_path_neighbors(create_mnn(knn_indices, knn_dists, n_neighbors), n_neighbors, n_jobs=-1)
-knn_indices, knn_dists = mutual_nn_nearest(knn_indices, knn_dists, n_neighbors2, n_neighbors2, connectivity)
+mnn_indices, mnn_dists = create_mnn(knn_indices, knn_dists, 45)
+mnn_indices2, mnn_dists2 = find_path_neighbors(mnn_indices, mnn_dists, 45, n_jobs=-1)
 knn_indices = knn_indices[:, :n_neighbors]
 knn_dists = knn_dists[:, :n_neighbors]
 with open(f'{dropout}/mnn_150_output_{n_epochs}_{dropout}.npz', 'wb') as f:

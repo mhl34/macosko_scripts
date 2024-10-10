@@ -457,8 +457,8 @@ const tab2 = countmap(df[!,:sb2_i])
 
 # const uc1 = determine_umi_cutoff(tab1 |> values |> collect)
 # const uc2 = determine_umi_cutoff(tab2 |> values |> collect)
-const uc1 = 100
-const uc2 = 100
+const uc1 = 200
+const uc2 = 200
 
 const bc1 = count(e -> e >= uc1, tab1 |> values |> collect)
 const bc2 = count(e -> e >= uc2, tab2 |> values |> collect)

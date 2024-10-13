@@ -97,7 +97,6 @@ def connection_filter(df):
 
 parser = argparse.ArgumentParser(description='Parser for KNN')
 
-parser.add_argument('filename')           # positional argument
 parser.add_argument('-i', '--in_dir', default='.', dest='in_dir')      # option that takes a value
 parser.add_argument('-o', '--out_dir', default='.', dest='out_dir')
 

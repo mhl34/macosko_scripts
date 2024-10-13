@@ -7,6 +7,7 @@ from collections import Counter
 from helpers import *
 from scipy.sparse import coo_matrix
 import scipy
+import argparse
 
 def connection_filter(df):
     assert all(df.columns == ["sb1_index", "sb2_index", "umi"])
@@ -93,6 +94,17 @@ def connection_filter(df):
     
     fig.tight_layout()
     return df, uniques1, uniques2, fig, meta
+
+parser = argparse.ArgumentParser(description='Parser for KNN')
+
+parser.add_argument('filename')           # positional argument
+parser.add_argument('-i', '--in_dir', default='.', dest='in_dir')      # option that takes a value
+parser.add_argument('-o', '--out_dir', default='.', dest='out_dir')
+
+args = parser.parse_args()
+
+in_dir = args.in_dir
+out_dir = args.out_dir
 
 print("\nReading the matrix...")
 df = pd.read_csv(os.path.join(in_dir, 'matrix.csv.gz'), compression='gzip')

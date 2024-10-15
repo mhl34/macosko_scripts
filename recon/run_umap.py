@@ -1,25 +1,46 @@
-from cuml.manifold.umap import UMAP as cuUMAP
 import scipy
 import argparse
 import numpy as np
 import cupy as cp
 from helpers import *
+from umap import UMAP
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-k", "--knn", help="knn type", type=str)
-parser.add_argument("-g", "--gpu_id", help="gpu id", type=int, default = 0)
-args, unknown = parser.parse_known_args()
+parser = argparse.ArgumentParser(description='Parser for KNN')
 
-knn = args.knn
-gpu_id = args.gpu_id
-mat = scipy.sparse.load_npz('mat.npz')
-n_epochs = 100000
-init = 'spectral'
-n_neighbors = 45
+parser.add_argument('-i', '--in_dir', default='.', dest='in_dir')      # option that takes a value
+parser.add_argument('-o', '--out_dir', default='.', dest='out_dir')
+parser.add_argument('-n', '--n_neighbors', default=45, dest='n_neighbors')
+parser.add_argument('-e', '--epochs', default=1000, dest='n_epochs')
+
+args = parser.parse_args()
+
+in_dir = args.in_dir
+out_dir = args.out_dir
+n_neighbors = int(args.n_neighbors)
+n_epochs = int(args.n_epochs)
+
+print('load mat')
+mat = scipy.sparse.load_npz(f'{in_dir}/mat.npz')
+print(f'mat shape: {mat.shape}')
+
+print('load init')
+mem = np.load(f'{in_dir}/membership_all_counts.npz')['membership']
+mem_embeddings = np.load(f'{in_dir}/mem_embeddings_all_counts.npz')['embeddings']
+init = mem_embeddings[mem]
+print(f'init shape: {init.shape}')
 min_dist = 0.1
 
-def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1):
-    reducer = cuUMAP(n_components = 2,
+print('load knn')
+knn_output = np.load('knn.npz')
+knn_indices = knn_output['indices'][:, :n_neighbors]
+knn_dists = knn_output['dists'][:, :n_neighbors]
+
+print('params')
+print(f'neighbors: {n_neighbors}')
+print(f'epochs: {n_epochs}')
+
+def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1):
+    reducer = UMAP(n_components = 2,
                    metric = metric,
                    spread = 1.0,
                    random_state = None,
@@ -35,26 +56,8 @@ def my_cuumap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1,
     embedding = reducer.fit_transform(np.log1p(mat))
     return(embedding)
 
-print(f'load in knn of type : {knn}')
-if knn == 'cuknn':
-    cuknn_output = np.load('cuknn_output.npz')
-    knn_indices = cuknn_output['knn_indices']
-    knn_dists = cuknn_output['knn_dists']
-elif knn == 'knn': 
-    knn_output = np.load('knn_output.npz')
-    knn_indices = knn_output['knn_indices']
-    knn_dists = knn_output['knn_dists']
-else:
-    knn_output_150 = np.load('knn_output_150.npz')
-    knn_indices = knn_output_150['knn_indices']
-    knn_dists = knn_output_150['knn_dists']
-
-# print('run mnn')
-# connectivity = 'full_tree'
-# knn_indices, knn_dists = mutual_nn_nearest(knn_indices, knn_dists, n_neighbors, n_neighbors, connectivity)
-
 print('run umap')
-embeddings = my_cuumap(mat, n_epochs)
+embeddings = my_umap(mat, n_epochs)
 
 print('save embeddings')
-np.savez(f'embeddings_{knn}.npz', embeddings = embeddings)
+np.savez(f'embeddings.npz', embeddings = embeddings)

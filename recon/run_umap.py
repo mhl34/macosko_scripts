@@ -60,4 +60,4 @@ print('run umap')
 embeddings = my_umap(mat, n_epochs)
 
 print('save embeddings')
-np.savez(f'embeddings.npz', embeddings = embeddings)
+np.savez(f'{out_dir}/embeddings.npz', embeddings = embeddings)

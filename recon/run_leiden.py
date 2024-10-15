@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='Parser for KNN')
 
 parser.add_argument('-i', '--in_dir', default='.', dest='in_dir')      # option that takes a value
 parser.add_argument('-o', '--out_dir', default='.', dest='out_dir')
-parser.add_argument('-n', '--n_neighbors', default=45, dest='n_neighbors'
+parser.add_argument('-n', '--n_neighbors', default=45, dest='n_neighbors')
 
 args = parser.parse_args()
 

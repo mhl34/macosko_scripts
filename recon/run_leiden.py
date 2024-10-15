@@ -11,13 +11,26 @@ import scipy
 import pandas as pd
 import os
 from scipy.sparse import coo_matrix
+import argparse
+
+parser = argparse.ArgumentParser(description='Parser for KNN')
+
+parser.add_argument('-i', '--in_dir', default='.', dest='in_dir')      # option that takes a value
+parser.add_argument('-o', '--out_dir', default='.', dest='out_dir')
+parser.add_argument('-n', '--n_neighbors', default=45, dest='n_neighbors'
+
+args = parser.parse_args()
+
+in_dir = args.in_dir
+out_dir = args.out_dir
+n_neighbors = int(args.n_neighbors)
 
 print(f'KNN output')
-knn_output = np.load(f'knn.npz')
+knn_output = np.load(f'{in_dir}/knn.npz')
 knn_indices = knn_output['indices']
 knn_dists = knn_output['dists']
-knn_indices = knn_indices[:, :45]
-knn_dists = knn_dists[:, :45]
+knn_indices = knn_indices[:, :n_neighbors]
+knn_dists = knn_dists[:, :n_neighbors]
 
 # # Check the shape and dimensions
 print("KNN indices shape:", knn_indices.shape)
@@ -57,7 +70,7 @@ partition = la.find_partition(
 
 end = time.time()
 
-np.savez(f'membership_all_counts.npz', membership = np.array(partition.membership))
+np.savez(f'{out_dir}/membership_all_counts.npz', membership = np.array(partition.membership))
 
 print("Leiden partition complete")
 
@@ -90,7 +103,7 @@ print("Find inter_cluster_edges")
 ic_edges = inter_cluster_edge_calc(partition, g, weighted = False)
 ic_edges = ic_edges + ic_edges.T
 
-np.savez(f'ic_edges_all_counts.npz', ic_edges = ic_edges)
+np.savez(f'{out_dir}/ic_edges_all_counts.npz', ic_edges = ic_edges)
 
 print("Find UMAP")
 from umap import UMAP
@@ -128,6 +141,6 @@ end = time.time()
 
 plt.scatter(mem_embeddings[:, 0], mem_embeddings[:, 1], s = 1)
 plt.title(f'New SB1 selection')
-plt.savefig(f'mem_embeddings_all_counts.png')
-np.savez(f'mem_embeddings_all_counts.npz', embeddings = mem_embeddings)
+plt.savefig(f'{out_dir}/mem_embeddings_all_counts.png')
+np.savez(f'{out_dir}/mem_embeddings_all_counts.npz', embeddings = mem_embeddings)
 

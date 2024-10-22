@@ -102,7 +102,38 @@ def connection_filter(df):
     
     fig.tight_layout()
     return df, uniques1, uniques2, fig, meta
-        
+
+def inter_cluster_edge_calc(partition, g, weighted = True):
+    num_clusters = len(np.unique(partition.membership))
+    inter_cluster_edges = np.zeros((num_clusters, num_clusters))
+
+    # Count the number of edges between clusters
+    mem = np.array(partition.membership)
+    for i in tqdm(range(len(g.es))):
+        edge = g.es[i]
+        source_cluster = mem[edge.source]
+        target_cluster = mem[edge.target]
+        inter_cluster_edges[source_cluster, target_cluster] += (source_cluster != target_cluster)
+    return inter_cluster_edges
+
+def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, precompute = False):
+    reducer = UMAP(n_components = 2,
+                   metric = metric,
+                   spread = 1.0,
+                   random_state = None,
+                   learning_rate = learning_rate,
+                   repulsion_strength = 1,
+                   verbose = True,
+                   precomputed_knn = (knn_indices, knn_dists) if precompute else (None, None, None),
+                   n_neighbors = n_neighbors,
+                   min_dist = min_dist,
+                   n_epochs = n_epochs,
+                   init = init,
+                   n_jobs = -1
+                  )
+    embedding = reducer.fit_transform(np.log1p(mat))
+    return(embedding)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-md", "--min_dist", dest="min_dist", default = 0.1, help="minimum distance for umap")
 parser.add_argument("-nn", "--n_neighbors", dest="n_neighbors", default = 45, help="number of neighbors")
@@ -225,27 +256,6 @@ print(f'number of clusters: {len(np.unique(partition.membership))}')
 print(f'modularity: {partition.modularity}')
 print(f'Leiden clustering: {end - start} seconds')
 
-def inter_cluster_edge_calc(partition, g, weighted = True):
-    num_clusters = len(np.unique(partition.membership))
-    inter_cluster_edges = np.zeros((num_clusters, num_clusters))
-
-    # Count the number of edges between clusters
-    mem = np.array(partition.membership)
-    for i in tqdm(range(len(g.es))):
-        edge = g.es[i]
-        source_cluster = mem[edge.source]
-        target_cluster = mem[edge.target]
-        inter_cluster_edges[source_cluster, target_cluster] += (source_cluster != target_cluster)
-    return inter_cluster_edges
-
-def get_larger_partitions(partition_mem_arr, inter_cluster_edges):
-    part_dict = {}
-    unique_clusters = np.unique(partition_mem_arr)
-    for i in unique_clusters:
-        neighboring_partitions = pd.Series(partition_mem_arr).isin(np.where(inter_cluster_edges[i] > np.mean(inter_cluster_edges[i]))[0])
-        part_dict[i] = neighboring_partitions
-    return part_dict
-
 print("Find inter_cluster_edges")
 ic_edges = inter_cluster_edge_calc(partition, g, weighted = False)
 ic_edges = ic_edges + ic_edges.T
@@ -253,40 +263,6 @@ ic_edges = ic_edges + ic_edges.T
 np.savez(f'{out_dir}/ic_edges.npz', ic_edges = ic_edges)
 
 init = 'spectral'
-
-def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, precompute = False):
-  if precompute:
-    reducer = UMAP(n_components = 2,
-                   metric = metric,
-                   spread = 1.0,
-                   random_state = None,
-                   learning_rate = learning_rate,
-                   repulsion_strength = 1,
-                   verbose = True,
-                   precomputed_knn = (knn_indices, knn_dists),
-                   n_neighbors = n_neighbors,
-                   min_dist = min_dist,
-                   n_epochs = n_epochs,
-                   init = init,
-                   n_jobs = -1
-                  )
-  else:
-    reducer = UMAP(n_components = 2,
-                   metric = metric,
-                   spread = 1.0,
-                   random_state = None,
-                   learning_rate = learning_rate,
-                   repulsion_strength = 1,
-                   verbose = True,
-                   # precomputed_knn = (knn_indices, knn_dists),
-                   n_neighbors = n_neighbors,
-                   min_dist = min_dist,
-                   n_epochs = n_epochs,
-                   init = init,
-                   n_jobs = -1
-                  )
-  embedding = reducer.fit_transform(np.log1p(mat))
-  return(embedding)
 
 start = time.time()
 mem_embeddings = my_umap(ic_edges, n_epochs = 2000, metric = 'cosine', precompute = False)

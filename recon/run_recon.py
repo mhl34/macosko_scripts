@@ -248,7 +248,7 @@ partition = la.find_partition(
 end = time.time()
 
 mem = np.array(partition.membership)
-np.savez(f'{out_dir}/membership.npz', membership = mem))
+np.savez(f'{out_dir}/membership.npz', membership = mem)
 
 print("Leiden partition complete")
 

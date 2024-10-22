@@ -116,7 +116,7 @@ def inter_cluster_edge_calc(partition, g, weighted = True):
         inter_cluster_edges[source_cluster, target_cluster] += (source_cluster != target_cluster)
     return inter_cluster_edges
 
-def my_umap(mat, n_epochs, init=init, metric="cosine", repulsion_strength = 1, learning_rate = 1, precompute = False):
+def my_umap(mat, n_epochs, init, metric="cosine", repulsion_strength = 1, learning_rate = 1, precompute = False):
     reducer = UMAP(n_components = 2,
                    metric = metric,
                    spread = 1.0,
@@ -265,7 +265,7 @@ np.savez(f'{out_dir}/ic_edges.npz', ic_edges = ic_edges)
 init = 'spectral'
 
 start = time.time()
-mem_embeddings = my_umap(ic_edges, n_epochs = 2000, metric = 'cosine', precompute = False)
+mem_embeddings = my_umap(ic_edges, n_epochs = 2000, init = init, metric = 'cosine', precompute = False)
 mem_embeddings[:, 0] -= np.mean(mem_embeddings[:, 0])
 mem_embeddings[:, 1] -= np.mean(mem_embeddings[:, 1])
 end = time.time()
@@ -279,7 +279,7 @@ init = mem_embeddings[mem]
 print(init.shape)
 
 print('run umap')
-embeddings = my_umap(mat, n_epochs, metric = 'cosine', precompute = True)
+embeddings = my_umap(mat, n_epochs, init = init, metric = 'cosine', precompute = True)
 
 print('save embeddings')
 np.savez(f'{out_dir}embeddings.npz', embeddings = embeddings)

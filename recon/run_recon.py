@@ -156,7 +156,6 @@ print(f'epochs: {n_epochs}')
 print("\nReading the matrix...")
 df = pd.read_csv(f'{in_dir}/matrix.csv.gz', compression='gzip', quotechar='"') 
 df = df[['sb1_index', 'sb2_index', 'umi']]
-df = df[df['umi'] != 1]
 df.sb1_index -= 1 # convert from 1- to 0-indexed
 df.sb2_index -= 1 # convert from 1- to 0-indexed
 

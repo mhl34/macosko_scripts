@@ -81,14 +81,14 @@ def connection_filter(df):
     # sb2_remove = reduce(np.union1d, [high, low])
     df = df[~df['sb2_index'].isin(sb2_remove)]
     
-    meta["sb2_high"] = len(high)
-    meta["sb2_low"] = len(low)
-    meta["sb2_noise"] = len(noise)
-    meta["sb2_removed"] = len(sb2_remove)
-    meta["umi_final"] = sum(df["umi"])
+    # meta["sb2_high"] = len(high)
+    # meta["sb2_low"] = len(low)
+    # meta["sb2_noise"] = len(noise)
+    # meta["sb2_removed"] = len(sb2_remove)
+    # meta["umi_final"] = sum(df["umi"])
     print(f"{len(high)} high R2 beads ({len(high)/len(sb2)*100:.2f}%)")
     print(f"{len(low)} low R2 beads ({len(low)/len(sb2)*100:.2f}%)")
-    print(f"{len(noise)} noise R2 beads ({len(noise)/len(sb2)*100:.2f}%)")
+    # print(f"{len(noise)} noise R2 beads ({len(noise)/len(sb2)*100:.2f}%)")
     # diff = meta['umi_half']-meta['umi_final'] ; print(f"{diff} R2 UMIs filtered ({diff/meta['umi_half']*100:.2f}%)")
     
     # Factorize the new dataframe

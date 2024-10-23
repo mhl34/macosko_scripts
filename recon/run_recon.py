@@ -75,8 +75,8 @@ def connection_filter(df):
     logcon = np.log10(sb2['connections'])
     high = np.where(logcon >= np.mean(logcon) + np.std(logcon) * z_high)[0]
     low = np.where(logcon <= np.mean(logcon) + np.std(logcon) * z_low)[0]
-    noise = np.where(sb2['max'] <= 5)[0]
-    sb2_remove = reduce(np.union1d, [high, low, noise])
+    # noise = np.where(sb2['max'] <= 5)[0]
+    sb2_remove = reduce(np.union1d, [high, low])
     # sb2_remove = reduce(np.union1d, [low, noise])
     # sb2_remove = reduce(np.union1d, [high, low])
     df = df[~df['sb2_index'].isin(sb2_remove)]

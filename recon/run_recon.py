@@ -14,31 +14,33 @@ import igraph as igp
 import leidenalg as la
 from tqdm import tqdm
 import argparse
+import csv
+import os
 
 def connection_filter(df):
     assert all(df.columns == ["sb1_index", "sb2_index", "umi"])
-    fig, axes = plt.subplots(2, 2, figsize=(8, 6))
-    meta = {"umi_init": sum(df["umi"])}
+    # fig, axes = plt.subplots(2, 2, figsize=(8, 6))
+    # meta = {"umi_init": sum(df["umi"])}
 
-    def hist_z(ax, data, z_high=None, z_low=None):
-        ax.hist(data, bins=100)
-        ax.set_ylabel('Count')
+#     def hist_z(ax, data, z_high=None, z_low=None):
+#         ax.hist(data, bins=100)
+#         ax.set_ylabel('Count')
     
-        meanval = np.mean(data)
-        ax.axvline(meanval, color='black', linestyle='dashed')
-        ax.text(meanval, ax.get_ylim()[1] * 0.95, f'Mean: {10**meanval:.2f}', color='black', ha='center')
+#         meanval = np.mean(data)
+#         ax.axvline(meanval, color='black', linestyle='dashed')
+#         ax.text(meanval, ax.get_ylim()[1] * 0.95, f'Mean: {10**meanval:.2f}', color='black', ha='center')
     
-        if z_high:
-            assert z_high > 0
-            zval = meanval + np.std(data) * z_high
-            ax.axvline(zval, color='red', linestyle='dashed')
-            ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_high}z: {10**zval:.2f}', color='red', ha='left')
+#         if z_high:
+#             assert z_high > 0
+#             zval = meanval + np.std(data) * z_high
+#             ax.axvline(zval, color='red', linestyle='dashed')
+#             ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_high}z: {10**zval:.2f}', color='red', ha='left')
     
-        if z_low:
-            assert z_low < 0
-            zval = meanval + np.std(data) * z_low
-            ax.axvline(zval, color='red', linestyle='dashed')
-            ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_low}z: {10**zval:.2f}', color='red', ha='right')
+#         if z_low:
+#             assert z_low < 0
+#             zval = meanval + np.std(data) * z_low
+#             ax.axvline(zval, color='red', linestyle='dashed')
+#             ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_low}z: {10**zval:.2f}', color='red', ha='right')
     
     # Remove sb1 beads
     # z_high = 3
@@ -65,12 +67,12 @@ def connection_filter(df):
     # Remove sb2 beads
     z_high = 3 ; z_low = -3
     sb2 = df.groupby(f'sb2_index').agg(umi=('umi', 'sum'), connections=('umi', 'size'), max=('umi', 'max')).reset_index()
-    hist_z(axes[1,0], np.log10(sb2['connections']), z_high, z_low)
-    axes[1,0].set_xlabel('Connections')
-    axes[1,0].set_title('sb2 connections')
-    hist_z(axes[1,1], np.log10(sb2['max']))
-    axes[1,1].set_xlabel('Max')
-    axes[1,1].set_title('sb2 max')
+    # hist_z(axes[1,0], np.log10(sb2['connections']), z_high, z_low)
+    # axes[1,0].set_xlabel('Connections')
+    # axes[1,0].set_title('sb2 connections')
+    # hist_z(axes[1,1], np.log10(sb2['max']))
+    # axes[1,1].set_xlabel('Max')
+    # axes[1,1].set_title('sb2 max')
 
     logcon = np.log10(sb2['connections'])
     high = np.where(logcon >= np.mean(logcon) + np.std(logcon) * z_high)[0]
@@ -101,8 +103,8 @@ def connection_filter(df):
     # assert set(df.sb1_index) == set(range(max(df.sb1_index)+1))
     # assert set(df.sb2_index) == set(range(max(df.sb2_index)+1))
     
-    fig.tight_layout()
-    return df, uniques1, uniques2, fig, meta
+    # fig.tight_layout()
+    return df, uniques1, uniques2
 
 def inter_cluster_edge_calc(partition, g, weighted = True):
     num_clusters = len(np.unique(partition.membership))
@@ -155,16 +157,17 @@ print(f'epochs: {n_epochs}')
 
 print("\nReading the matrix...")
 df = pd.read_csv(f'{in_dir}/matrix.csv.gz', compression='gzip', quotechar='"') 
+sb1 = pd.read_csv(os.path.join(in_dir, 'sb1.csv.gz'), compression='gzip')
+sb2 = pd.read_csv(os.path.join(in_dir, 'sb2.csv.gz'), compression='gzip')
 df = df[['sb1_index', 'sb2_index', 'umi']]
 df.sb1_index -= 1 # convert from 1- to 0-indexed
 df.sb2_index -= 1 # convert from 1- to 0-indexed
 
 print("\nFiltering the beads...")
-df, uniques1, uniques2, fig, meta = connection_filter(df)
-
+df, uniques1, uniques2 = connection_filter(df)
 # Rows are the beads you wish to recon
 # Columns are the features used for judging similarity
-mat = coo_matrix((df['umi'], (df['sb1_index'], df['sb2_index']))).tocsr()
+mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
 scipy.sparse.save_npz(os.path.join(in_dir, 'mat_unified.npz'), mat)
 del df
 
@@ -186,6 +189,7 @@ bad_bead_indices = np.where(bad_mask)[0]
 good_beads_indices = np.where(~bad_mask)[0]
 
 mat = mat[good_beads_indices]
+uniques2 = uniques2[good_beads_indices]
 mnn_mask = KNNMask(mnn_indices, mnn_dists)
 mnn_indices, mnn_dists = mnn_mask.remove(bad_bead_indices)
 
@@ -200,6 +204,7 @@ if bad_mask.sum() > 0:
     good_beads_indices = np.where(~bad_mask)[0]
     
     mat = mat[good_beads_indices]
+    uniques2 = uniques2[good_beads_indices]
     mnn_mask = KNNMask(mnn_indices2, mnn_dists2)
     mnn_indices2, mnn_dists2 = mnn_mask.remove(bad_bead_indices)
     
@@ -282,4 +287,12 @@ print('run umap')
 embeddings = my_umap(mat, n_epochs, init = init, metric = 'cosine', precompute = True)
 
 print('save embeddings')
-np.savez(f'{out_dir}embeddings.npz', embeddings = embeddings)
+np.savez(f'{out_dir}/embeddings.npz', embeddings = embeddings)
+
+# Create the Puck file
+sbs = [sb2["sb2"][i] for i in uniques2]
+# assert embedding.shape[0] == len(sbs)
+with open(os.path.join(out_dir, "Puck.csv"), mode='w', newline='') as file:
+    writer = csv.writer(file)
+    for i in range(len(sbs)):
+        writer.writerow([sbs[i], embeddings[i,0], embeddings[i,1]])

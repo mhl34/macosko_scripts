@@ -1,10 +1,10 @@
 import os
 import math
+import copy
 import heapq
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import scipy
 import matplotlib.pyplot as plt
 from functools import reduce
 from collections import Counter
@@ -52,59 +52,27 @@ def hexmaps(embeddings, titles=[], fontsize=10):
 
     return fig, axes
 
-# (sb1, sb2, umi)
-def uvc(df):
-    assert df.shape[1] == 3
-    df.columns = ['sb1_index', 'sb2_index', 'umi']
-    
-    df1 = df.groupby('sb1_index').agg(umi=('umi', 'sum'), size=('sb1_index', 'size')).reset_index()
-    df1[['umi', 'size']] = np.log10(df1[['umi', 'size']])
-    
-    df2 = df.groupby('sb2_index').agg(umi=('umi', 'sum'), size=('sb2_index', 'size')).reset_index()
-    df2[['umi', 'size']] = np.log10(df2[['umi', 'size']])
-
-    def plot(ax, df, title):
-        hb = ax.hexbin(df['umi'], df['size'], gridsize=100, bins='log', cmap='plasma')
-        ax.set_xlabel(f'umi (mean: {np.mean(df["umi"]):.2f}, median: {np.median(df["umi"]):.2f})')
-        ax.set_ylabel(f'connections (mean: {np.mean(df["size"]):.2f}, median: {np.median(df["size"]):.2f})')
-        ax.set_title(title)
-
-        x1, x2 = ax.get_xlim()
-        y1, y2 = ax.get_ylim()
-        pts = np.linspace(max(x1,y1), min(x2,y2), 100)
-        ax.plot(pts, pts, color='black', linewidth=0.5)
-        ax.set_xlim((x1, x2))
-        ax.set_ylim((y1, y2))
-        ax.axis('equal')
-
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-    plot(axes[0], df1, "sb1")
-    plot(axes[1], df2, "sb2")
-    plt.tight_layout()
-    
-    return fig, axes
-
 # (x, y, color)
-def beadplot(puck, cmap='viridis'):
-    if isinstance(puck, np.ndarray):
-        if puck.shape[1] == 2:
-            puck = np.hstack((puck, np.zeros((puck.shape[0], 1))))
-        puck = puck[puck[:, 2].argsort()]
+def beadplot(embedding, colors, cmap='viridis'):
+    assert embedding.shape[0] == len(colors)
+    if isinstance(embedding, np.ndarray):
+        puck = np.hstack((embedding, colors.reshape(-1,1)))
+        puck = puck[puck[:,2].argsort()]
         x = puck[:,0]
         y = puck[:,1]
-        umi = puck[:,2]
-    elif isinstance(puck, pd.DataFrame):
-        if puck.shape[1] == 2:
-            puck.loc[:,"color"] = 0
+        c = puck[:,2]
+    elif isinstance(embedding, pd.DataFrame):
+        puck = embedding
+        puck.loc[:,"color"] = colors
         puck = puck.sort_values(by=puck.columns[2])
         x = puck.iloc[:,0]
         y = puck.iloc[:,1]
-        umi = puck.iloc[:,2]
+        c = puck.iloc[:,2]
     else:
         raise TypeError("Input must be a NumPy ndarray or a pandas DataFrame")
 
     plt.figure(figsize=(8, 8))
-    plt.scatter(x, y, c=umi, cmap=cmap, s=0.1)
+    plt.scatter(x, y, c=c, cmap=cmap, s=0.1)
     plt.colorbar()
     plt.xlabel('xcoord')
     plt.ylabel('ycoord')
@@ -149,94 +117,86 @@ def convergence_plot(embeddings):
     
     plt.tight_layout()
     return fig, axes
-    
-### BEAD FILTERING METHODS #####################################################
 
-def connection_filter(df):
-    assert all(df.columns == ["sb1_index", "sb2_index", "umi"])
-    fig, axes = plt.subplots(2, 2, figsize=(8, 6))
-    meta = {"umi_init": sum(df["umi"])}
+# highlight reciprocated ones
+def embedding_neighbor_locations(knn_indices, knn_dists, embedding, nn=45, n=16):
+    from matplotlib.cm import viridis
+    from matplotlib.colors import Normalize
+    assert knn_indices.shape[0] == knn_dists.shape[0] == embedding.shape[0]
+    assert knn_indices.shape[1] == knn_dists.shape[1]
+    
+    # Create the grid
+    nrows = np.ceil(np.sqrt(n)).astype(int)
+    fig, axes = plt.subplots(nrows, nrows, figsize=(8, 8))
+    if type(axes) != np.ndarray:
+        axes = np.array([axes])
+    axes = axes.flatten()
 
-    def hist_z(ax, data, z_high=None, z_low=None):
-        ax.hist(data, bins=100)
-        ax.set_ylabel('Count')
-    
-        meanval = np.mean(data)
-        ax.axvline(meanval, color='black', linestyle='dashed')
-        ax.text(meanval, ax.get_ylim()[1] * 0.95, f'Mean: {10**meanval:.2f}', color='black', ha='center')
-    
-        if z_high:
-            assert z_high > 0
-            zval = meanval + np.std(data) * z_high
-            ax.axvline(zval, color='red', linestyle='dashed')
-            ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_high}z: {10**zval:.2f}', color='red', ha='left')
-    
-        if z_low:
-            assert z_low < 0
-            zval = meanval + np.std(data) * z_low
-            ax.axvline(zval, color='red', linestyle='dashed')
-            ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_low}z: {10**zval:.2f}', color='red', ha='right')
-    
-    # Remove sb1 beads
-    z_high = 3
-    sb1 = df.groupby(f'sb1_index').agg(umi=('umi', 'sum'), connections=('umi', 'size'), max=('umi', 'max')).reset_index()
-    hist_z(axes[0,0], np.log10(sb1['connections']), z_high)
-    axes[0,0].set_xlabel('Connections')
-    axes[0,0].set_title('sb1 connections')
-    hist_z(axes[0,1], np.log10(sb1['max']))
-    axes[0,1].set_xlabel('Max')
-    axes[0,1].set_title('sb1 max')
+    selected_indices = np.random.randint(0, embedding.shape[0], size=n)
+    x = embedding[:,0] ; y = embedding[:,1]
 
-    logcon = np.log10(sb1['connections'])
-    high = np.where(logcon >= np.mean(logcon) + np.std(logcon) * z_high)[0]
-    sb1_remove = reduce(np.union1d, [high])
-    df = df[~df['sb1_index'].isin(sb1_remove)]
-    
-    meta["sb1_high"] = len(high)
-    meta["sb1_removed"] = len(sb1_remove)
-    meta["umi_half"] = sum(df["umi"])
-    print(f"{len(high)} high R1 beads ({len(high)/len(sb1)*100:.2f}%)")
-    diff = meta['umi_init']-meta['umi_half'] ; print(f"{diff} R1 UMIs filtered ({diff/meta['umi_init']*100:.2f}%)")
+    # Plot the data
+    for ax, i in zip(axes, selected_indices):
+        indices = knn_indices[i, 1:nn]
+        dists = knn_dists[i, 1:nn]
+        colors = viridis(Normalize(vmin=0, vmax=1)(dists))
 
-    # Remove sb2 beads
-    z_high = 3 #; z_low = -3
-    sb2 = df.groupby(f'sb2_index').agg(umi=('umi', 'sum'), connections=('umi', 'size'), max=('umi', 'max')).reset_index()
-    hist_z(axes[1,0], np.log10(sb2['connections']), z_high) #, z_low)
-    axes[1,0].set_xlabel('Connections')
-    axes[1,0].set_title('sb2 connections')
-    hist_z(axes[1,1], np.log10(sb2['max']))
-    axes[1,1].set_xlabel('Max')
-    axes[1,1].set_title('sb2 max')
-    
-    logcon = np.log10(sb2['connections'])
-    high = np.where(logcon >= np.mean(logcon) + np.std(logcon) * z_high)[0]
-    # low = np.where(logcon <= np.mean(logcon) + np.std(logcon) * z_low)[0]
-    # noise = np.where(sb2['max'] <= 1)[0]
-    sb2_remove = reduce(np.union1d, [high]) # [high, low, noise]
-    df = df[~df['sb2_index'].isin(sb2_remove)]
-    
-    meta["sb2_high"] = len(high)
-    # meta["sb2_low"] = len(low)
-    # meta["sb2_noise"] = len(noise)
-    meta["sb2_removed"] = len(sb2_remove)
-    meta["umi_final"] = sum(df["umi"])
-    print(f"{len(high)} high R2 beads ({len(high)/len(sb2)*100:.2f}%)")
-    # print(f"{len(low)} low R2 beads ({len(low)/len(sb2)*100:.2f}%)")
-    # print(f"{len(noise)} noise R2 beads ({len(noise)/len(sb2)*100:.2f}%)")
-    diff = meta['umi_half']-meta['umi_final'] ; print(f"{diff} R2 UMIs filtered ({diff/meta['umi_half']*100:.2f}%)")
-    
-    # Factorize the new dataframe
-    codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)
-    df.loc[:, 'sb1_index'] = codes1
-    codes2, uniques2 = pd.factorize(df['sb2_index'], sort=True)
-    df.loc[:, 'sb2_index'] = codes2
+        ax.scatter(x, y, color='grey', s=10, alpha=0.5)
+        ax.scatter(x[indices], y[indices], color=colors, s=20)
+        ax.scatter(x[i], y[i], color='red', s=30)
 
-    # assert set(df.sb1_index) == set(range(max(df.sb1_index)+1))
-    # assert set(df.sb2_index) == set(range(max(df.sb2_index)+1))
+        ax.set_xlim(min(x[indices]), max(x[indices]))
+        ax.set_ylim(min(y[indices]), max(y[indices]))
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_title(i)
+    
+    for ax in axes[n:]:
+        ax.set_visible(False)
     
     fig.tight_layout()
-    return df, uniques1, uniques2, fig, meta
+    return fig, axes
 
+def embedding_neighbor_distances(knn_indices, knn_dists, embedding, nn=45):
+    assert knn_indices.shape[0] == knn_dists.shape[0] == embedding.shape[0]
+    assert knn_indices.shape[1] == knn_dists.shape[1]
+
+    dists = np.vstack([np.linalg.norm(embedding[inds] - embedding[inds[0]], axis=1) for inds in knn_indices])
+    
+    def n_hist(ax, dists, nn):
+        data = dists[:,nn]
+        ax.hist(np.log10(data), bins=100)
+        ax.set_xlabel('UMAP distance (log10)')
+        ax.set_ylabel('Count')
+        ax.set_title(f'UMAP Distance to neighbor {nn}')
+        meanval = np.log10(np.mean(data))
+        ax.axvline(meanval, color='red', linestyle='dashed')
+        ax.text(meanval+0.1, ax.get_ylim()[1] * 0.95, f'Mean: {10**meanval:.2f}', color='black', ha='left')
+
+    fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+    
+    n_hist(axes[0,0], dists, 1)
+    n_hist(axes[0,1], dists, nn)
+    
+    ax=axes[1,0]
+    data = np.mean(dists[:,1:nn], axis=1)
+    ax.hist(np.log10(data), bins=100)
+    ax.set_xlabel('UMAP distance (log10)')
+    ax.set_ylabel('Count')
+    ax.set_title(f'UMAP Distance to average neighbor (45)')
+    meanval = np.log10(np.mean(data))
+    ax.axvline(meanval, color='red', linestyle='dashed')
+    ax.text(meanval+0.1, ax.get_ylim()[1] * 0.95, f'Mean: {10**meanval:.2f}', color='black', ha='left')
+    
+    axes[1,1].hexbin(np.log10(dists[:,1:nn]), knn_dists[:,1:nn], gridsize=100, bins='log', cmap='plasma')
+    axes[1,1].set_xlabel('UMAP distance (log10)')
+    axes[1,1].set_ylabel('Cosine Distance')
+    axes[1,1].set_title(f'Cosine vs. UMAP Distance ({nn})')
+    
+    fig.tight_layout()
+    
+    return fig, axes
+
+### BEAD FILTERING METHODS #####################################################
 
 def knn_filter(knn_indices, knn_dists):
     fig, axes = plt.subplots(2, 2, figsize=(8, 6))
@@ -323,6 +283,8 @@ def knn_filter(knn_indices, knn_dists):
     fig.tight_layout()
     return filter_indexes, fig, meta
 
+
+
 ### KNN METHODS ################################################################
 
 # Compute the KNN using NNDescent
@@ -400,6 +362,47 @@ def knn_merge(knn_indices1, knn_dists1, knn_indices2, knn_dists2):
 
     return knn_indices, knn_dists
 
+class KNNMask:
+    def __init__(self, knn_indices, knn_dists):
+        assert knn_indices.shape == knn_dists.shape
+        self.knn_indices = copy.deepcopy(knn_indices)
+        self.knn_dists = copy.deepcopy(knn_dists)
+        self.original_size = knn_indices.shape[0]
+        self.valid_original_indexes = np.arange(self.original_size)
+    
+    def remove(self, bad):
+        curr_len = self.knn_indices.shape[0]
+        
+        assert self.knn_indices.shape == self.knn_dists.shape
+        assert np.all(np.unique(bad, return_counts=True)[1] == 1)
+        assert np.min(bad) >= 0 and np.max(bad) < curr_len
+        print(f"Removing {len(bad)} beads")
+        
+        # Slice the data        
+        m = np.ones(curr_len, dtype=bool)
+        m[bad] = False
+        self.knn_indices = self.knn_indices[m]
+        self.knn_dists = self.knn_dists[m]
+        self.valid_original_indexes = self.valid_original_indexes[m]
+        assert np.all(b not in self.knn_indices[:,0] for b in bad)
+        
+        # Remap the KNN        
+        index_map = np.cumsum([i not in bad for i in range(curr_len)], dtype=np.int32) - 1
+        index_map[bad] = -1
+        mask_2d = np.isin(self.knn_indices, bad)
+        self.knn_indices = index_map[self.knn_indices]
+        assert np.all(self.knn_indices[mask_2d] == -1)
+        self.knn_dists[mask_2d] = np.inf
+
+        assert self.knn_indices.shape == self.knn_dists.shape
+        return copy.deepcopy(self.knn_indices), copy.deepcopy(self.knn_dists)
+    
+    def final(self):
+        assert len(self.valid_original_indexes) == self.knn_indices.shape[0] == self.knn_dists.shape[0]
+        mask = np.zeros(self.original_size, dtype=bool)
+        mask[self.valid_original_indexes] = True
+        return mask
+
 ### MNN METHODS ################################################################
 ### source: https://umap-learn.readthedocs.io/en/latest/mutual_nn_umap.html ####
 
@@ -408,7 +411,7 @@ def create_knn_matrix(knn_indices, knn_dists):
     assert knn_indices.dtype == np.int32 and knn_dists.dtype == np.float64
     assert np.max(knn_indices) < len(knn_indices)
     assert np.array_equal(knn_indices[:,0], np.arange(len(knn_indices)))
-    assert np.all(knn_dists[:,1:] > 0) and not np.any(np.isnan(knn_dists))
+    # assert np.all(knn_dists[:,1:] > 0) and not np.any(np.isnan(knn_dists))
     
     rows = np.repeat(knn_indices[:,0], knn_indices.shape[1]-1)
     cols = knn_indices[:,1:].ravel()
@@ -427,9 +430,11 @@ def create_knn_matrix(knn_indices, knn_dists):
     return knn_matrix    
 
 # Prune non-reciprocated edges
-def create_mnn(knn_indices, knn_dists, n_neighbors_out=-1):
+def create_mnn(knn_indices, knn_dists):
+    assert knn_indices.shape == knn_dists.shape
+
     # Create mutual graph
-    print(f"Creating mutual graph {knn_indices.shape[1]}->{n_neighbors_out}...")
+    print(f"Creating mutual graph...")
     knn_matrix = create_knn_matrix(knn_indices, knn_dists).tocsr()
     m = np.abs(knn_matrix - knn_matrix.T) > np.min(knn_matrix.data)/2
     knn_matrix.data *= ~m[knn_matrix.astype(bool)].A1
@@ -455,10 +460,6 @@ def create_mnn(knn_indices, knn_dists, n_neighbors_out=-1):
 
         mnn_indices[i, :len(cols)] = cols
         mnn_dists[i, :len(vals)] = vals
-    
-    if n_neighbors_out > 0:
-        mnn_indices = mnn_indices[:,:n_neighbors_out]
-        mnn_dists = mnn_dists[:,:n_neighbors_out]
     
     print("done")
     return mnn_indices, mnn_dists
@@ -522,7 +523,7 @@ def find_path_neighbors(knn_indices, knn_dists, out_neighbors, n_jobs=-1):
     assert mnn_indices.shape == mnn_dists.shape
     assert mnn_indices.shape[0] == knn_indices.shape[0]
     assert np.max(mnn_indices) < len(mnn_indices)
-    assert np.all(mnn_indices >= 0) and np.all(mnn_dists >= 0)
+    # assert np.all(mnn_indices >= 0) and np.all(mnn_dists >= 0)
     assert np.array_equal(mnn_indices[:,0], np.arange(len(mnn_indices)))
     assert mnn_indices.dtype == np.int32 and mnn_dists.dtype == np.float64
     return mnn_indices, mnn_dists

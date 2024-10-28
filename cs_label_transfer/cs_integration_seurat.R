@@ -40,7 +40,7 @@ convert.folder.to.seurat = function(folder.path, dest.path) {
   counts.mat = Matrix::t(counts.mat)
   cell.meta = read.csv(cell.meta.path)
   row.names(cell.meta) = cell.meta$X
-  feature.meta = read.csv(feature.meta.path, header = F)
+  feature.meta = read.csv(feature.meta.path, header = F, skip = 1)
   gene.names = feature.meta$V1
   
   if (NCOL(counts.mat) != NROW(cell.meta)) {

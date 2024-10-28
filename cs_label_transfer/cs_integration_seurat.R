@@ -113,9 +113,9 @@ adata.combined <- adata.combined %>%
   Seurat::FindVariableFeatures() %>%
   Seurat::ScaleData() %>%
   Seurat::RunPCA(npcs=50, verbose=F) %>%
-  Seurat::FindNeighbors(reduction = "integrated.harmony", dims=1:30) %>%
+  Seurat::FindNeighbors(reduction = "integrated.cca", dims=1:30) %>%
   Seurat::FindClusters(resolution = 2) %>%
-  Seurat::RunUMAP(dims=1:30, reduction = "integrated.harmony", verbose=F)
+  Seurat::RunUMAP(dims=1:30, reduction = "integrated.cca", verbose=F)
 
 print("save combined object")
 qsave(adata.combined, paste0(query_name, "/combined.qs"))

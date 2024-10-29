@@ -168,7 +168,7 @@ df, uniques1, uniques2 = connection_filter(df)
 # Rows are the beads you wish to recon
 # Columns are the features used for judging similarity
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
-scipy.sparse.save_npz(os.path.join(in_dir, 'mat_unified.npz'), mat)
+scipy.sparse.save_npz(os.path.join(in_dir, 'mat.npz'), mat)
 del df
 
 ### Compute the KNN ############################################################
@@ -177,7 +177,7 @@ print("\nComputing the KNN...")
 n_neighbors_max = 150
 knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors_max)
 knn_indices[:, 0] = np.arange(knn_indices.shape[0])
-np.savez_compressed(os.path.join(out_dir, "knn_unified.npz"), indices=knn_indices, dists=knn_dists)
+np.savez_compressed(os.path.join(out_dir, "knn.npz"), indices=knn_indices, dists=knn_dists)
 
 print('\nRun MNN...')
 mnn_indices, mnn_dists = create_mnn(knn_indices, knn_dists)

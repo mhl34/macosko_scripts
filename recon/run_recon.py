@@ -213,6 +213,7 @@ knn_dists = mnn_dists2[:, :n_neighbors]
 
 scipy.sparse.save_npz(f'{out_dir}/mat_mask.npz', mat)
 np.savez(f'{out_dir}/mnn.npz', indices = knn_indices, dists = knn_dists)
+np.savez(f'{out_dir}/uniques2.npz', uniques2 = uniques2)
 
 # # Check the shape and dimensions
 print("KNN indices shape:", knn_indices.shape)

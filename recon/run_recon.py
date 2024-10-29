@@ -140,7 +140,7 @@ def my_umap(mat, n_epochs, init, metric="cosine", repulsion_strength = 1, learni
 parser = argparse.ArgumentParser()
 parser.add_argument("-md", "--min_dist", dest="min_dist", default = 0.1, help="minimum distance for umap")
 parser.add_argument("-nn", "--n_neighbors", dest="n_neighbors", default = 45, help="number of neighbors")
-parser.add_argument("-e", "--epochs", default=400, dest="n_epochs", help="input the number of epochs to run")
+parser.add_argument("-e", "--epochs", default=1000, dest="n_epochs", help="input the number of epochs to run")
 parser.add_argument("-i", "--in_dir", default=".", dest="in_dir", help="input directory")
 parser.add_argument("-o", "--out_dir", default=".", dest="out_dir", help="output directory")
 args = parser.parse_args()

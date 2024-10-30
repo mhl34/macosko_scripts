@@ -527,3 +527,76 @@ def find_path_neighbors(knn_indices, knn_dists, out_neighbors, n_jobs=-1):
     assert np.array_equal(mnn_indices[:,0], np.arange(len(mnn_indices)))
     assert mnn_indices.dtype == np.int32 and mnn_dists.dtype == np.float64
     return mnn_indices, mnn_dists
+
+### INITIALIZATION METHODS ################################################################
+
+def leiden_init(knn_indices, knn_dists, resolution_parameter = 160):
+    # # Create graph edges with distances
+    print("Generating Leiden initialization...")
+    n_points, n_neighbors = knn_indices.shape
+    row_indices = np.repeat(np.arange(n_points), n_neighbors - 1)  
+    col_indices = knn_indices[:, 1:].ravel() 
+    edges = np.column_stack((row_indices, col_indices))
+    
+    g = igp.Graph(edges=edges, directed=True)
+
+    # run leidenalg
+    resolution_parameter = resolution_parameter  
+    partition_type = la.RBConfigurationVertexPartition  
+    
+    partition = la.find_partition(
+        g,
+        partition_type,
+        resolution_parameter=resolution_parameter,
+    )
+    
+    print(f'number of clusters: {len(np.unique(partition.membership))}')
+    print(f'modularity: {partition.modularity}')
+    
+    def inter_cluster_edge_calc(partition, g, weighted=True):
+        num_clusters = len(np.unique(partition.membership))
+        inter_cluster_edges = np.zeros((num_clusters, num_clusters))
+        mem = np.array(partition.membership)
+    
+        edges = np.array([(mem[edge.source], mem[edge.target]) for edge in g.es])
+        
+        inter_cluster_edges_list = edges[edges[:, 0] != edges[:, 1]]
+    
+        counts = Counter(map(tuple, inter_cluster_edges_list))
+        
+        for (source_cluster, target_cluster), count in counts.items():
+            inter_cluster_edges[source_cluster, target_cluster] += count
+        
+        return inter_cluster_edges
+
+    ic_edges = inter_cluster_edge_calc(partition, g, weighted = False)
+    ic_edges = ic_edges + ic_edges.T
+    
+    mem_embeddings = my_umap(ic_edges, n_epochs = 2000, init = 'spectral', metric = 'cosine', precompute = False)
+    mem_embeddings[:, 0] -= np.mean(mem_embeddings[:, 0])
+    mem_embeddings[:, 1] -= np.mean(mem_embeddings[:, 1])
+    
+    fig, ax = plt.subplots()
+    ax.scatter(mem_embeddings[:, 0], mem_embeddings[:, 1], s=1)
+    ax.set_title('New SB1 selection')
+    
+    init = mem_embeddings[mem]
+    
+    return init, fig, ax
+
+### UMAP METHODS ################################################################
+def my_umap(mat, knn, n_epochs, init="spectral"):
+    reducer = UMAP(n_components = 2,
+                   metric = "cosine",
+                   spread = 1.0,
+                   random_state = None,
+                   verbose = True,
+                   
+                   precomputed_knn = knn,
+                   n_neighbors = n_neighbors,
+                   min_dist = min_dist,
+                   n_epochs = n_epochs,
+                   init = init
+                  )
+    embedding = reducer.fit_transform(np.log1p(mat))
+    return(embedding)

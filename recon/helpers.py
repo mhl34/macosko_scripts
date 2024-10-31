@@ -8,6 +8,8 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 from functools import reduce
 from collections import Counter
+import leidenalg as al
+import igraph as igp
 
 # (x, y)
 def hexmap(embedding, title="", fontsize=12):

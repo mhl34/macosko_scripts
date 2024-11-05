@@ -10,12 +10,28 @@ from functools import reduce
 from collections import Counter
 import leidenalg as la
 import igraph as igp
+from umap import UMAP
 
 # (x, y)
 def hexmap(embedding, title="", fontsize=12):
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     x, y = embedding[:, 0], embedding[:, 1]
     hb = ax.hexbin(x, y, cmap='viridis', linewidths=0.5)
+    ax.axis('equal')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(f'{title}', fontsize=fontsize)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    plt.tight_layout()
+    return fig, ax
+
+# (x, y)
+def weighted_hexmap(embedding, weights, title="", fontsize=12):
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    x, y = embedding[:, 0], embedding[:, 1]
+    hb = ax.hexbin(x, y, cmap='inferno', C = weights, linewidths=0.5)
+    fig.colorbar(hb, ax = ax)
     ax.axis('equal')
     ax.set_xticks([])
     ax.set_yticks([])
@@ -198,7 +214,103 @@ def embedding_neighbor_distances(knn_indices, knn_dists, embedding, nn=45):
     
     return fig, axes
 
+def umi_density_plot(puck_file, sb2_file):
+    puck = pd.read_csv(puck_file, names = ['sb2', 'x', 'y'])
+    sb2 = pd.read_csv(sb2_file)
+    merged = pd.merge(puck, sb2, on = 'sb2')
+
+    # get log UMI density plot
+    embedding = np.array([(x,y) for x,y in zip(merged.x, merged.y)])
+    weights = np.log1p(merged.umi)
+    fig, ax = weighted_hexmap(embedding, weights, title="Log UMI Density", fontsize = 12)
+    return fig, ax
+
 ### BEAD FILTERING METHODS #####################################################
+def connection_filter(df):
+    assert all(df.columns == ["sb1_index", "sb2_index", "umi"])
+    fig, axes = plt.subplots(2, 2, figsize=(8, 6))
+    meta = {"umi_init": sum(df["umi"])}
+
+    def hist_z(ax, data, z_high=None, z_low=None):
+        ax.hist(data, bins=100)
+        ax.set_ylabel('Count')
+    
+        meanval = np.mean(data)
+        ax.axvline(meanval, color='black', linestyle='dashed')
+        ax.text(meanval, ax.get_ylim()[1] * 0.95, f'Mean: {10**meanval:.2f}', color='black', ha='center')
+    
+        if z_high:
+            assert z_high > 0
+            zval = meanval + np.std(data) * z_high
+            ax.axvline(zval, color='red', linestyle='dashed')
+            ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_high}z: {10**zval:.2f}', color='red', ha='left')
+    
+        if z_low:
+            assert z_low < 0
+            zval = meanval + np.std(data) * z_low
+            ax.axvline(zval, color='red', linestyle='dashed')
+            ax.text(zval, ax.get_ylim()[1]*0.9, f'{z_low}z: {10**zval:.2f}', color='red', ha='right')
+    
+    # Remove sb1 beads
+    z_high = 3
+    sb1 = df.groupby(f'sb1_index').agg(umi=('umi', 'sum'), connections=('umi', 'size'), max=('umi', 'max')).reset_index()
+    hist_z(axes[0,0], np.log10(sb1['connections']), z_high)
+    axes[0,0].set_xlabel('Connections')
+    axes[0,0].set_title('sb1 connections')
+    hist_z(axes[0,1], np.log10(sb1['max']))
+    axes[0,1].set_xlabel('Max')
+    axes[0,1].set_title('sb1 max')
+
+    logcon = np.log10(sb1['connections'])
+    high = np.where(logcon >= np.mean(logcon) + np.std(logcon) * z_high)[0]
+    sb1_remove = reduce(np.union1d, [high])
+    df = df[~df['sb1_index'].isin(sb1_remove)]
+    
+    meta["sb1_high"] = len(high)
+    meta["sb1_removed"] = len(sb1_remove)
+    meta["umi_half"] = sum(df["umi"])
+    print(f"{len(high)} high R1 beads ({len(high)/len(sb1)*100:.2f}%)")
+    diff = meta['umi_init']-meta['umi_half'] ; print(f"{diff} R1 UMIs filtered ({diff/meta['umi_init']*100:.2f}%)")
+
+    # Remove sb2 beads
+    z_high = 3 ; z_low = -3
+    sb2 = df.groupby(f'sb2_index').agg(umi=('umi', 'sum'), connections=('umi', 'size'), max=('umi', 'max')).reset_index()
+    hist_z(axes[1,0], np.log10(sb2['connections']), z_high, z_low)
+    axes[1,0].set_xlabel('Connections')
+    axes[1,0].set_title('sb2 connections')
+    hist_z(axes[1,1], np.log10(sb2['max']))
+    axes[1,1].set_xlabel('Max')
+    axes[1,1].set_title('sb2 max')
+    
+    logcon = np.log10(sb2['connections'])
+    high = np.where(logcon >= np.mean(logcon) + np.std(logcon) * z_high)[0]
+    low = np.where(logcon <= np.mean(logcon) + np.std(logcon) * z_low)[0]
+    noise = np.where(sb2['max'] <= 1)[0]
+    sb2_remove = reduce(np.union1d, [high, low, noise])
+    df = df[~df['sb2_index'].isin(sb2_remove)]
+    
+    meta["sb2_high"] = len(high)
+    meta["sb2_low"] = len(low)
+    meta["sb2_noise"] = len(noise)
+    meta["sb2_removed"] = len(sb2_remove)
+    meta["umi_final"] = sum(df["umi"])
+    print(f"{len(high)} high R2 beads ({len(high)/len(sb2)*100:.2f}%)")
+    print(f"{len(low)} low R2 beads ({len(low)/len(sb2)*100:.2f}%)")
+    print(f"{len(noise)} noise R2 beads ({len(noise)/len(sb2)*100:.2f}%)")
+    diff = meta['umi_half']-meta['umi_final'] ; print(f"{diff} R2 UMIs filtered ({diff/meta['umi_half']*100:.2f}%)")
+    
+    # Factorize the new dataframe
+    codes1, uniques1 = pd.factorize(df['sb1_index'], sort=True)
+    df.loc[:, 'sb1_index'] = codes1
+    codes2, uniques2 = pd.factorize(df['sb2_index'], sort=True)
+    df.loc[:, 'sb2_index'] = codes2
+
+    # assert set(df.sb1_index) == set(range(max(df.sb1_index)+1))
+    # assert set(df.sb1_index) == set(range(max(df.sb1_index)+1))
+    # assert set(df.sb2_index) == set(range(max(df.sb2_index)+1))
+    
+    fig.tight_layout()
+    return df, uniques1, uniques2, fig, meta
 
 def knn_filter(knn_indices, knn_dists):
     fig, axes = plt.subplots(2, 2, figsize=(8, 6))
@@ -532,7 +644,7 @@ def find_path_neighbors(knn_indices, knn_dists, out_neighbors, n_jobs=-1):
 
 ### INITIALIZATION METHODS ################################################################
 
-def leiden_init(knn_indices, knn_dists, resolution_parameter = 160):
+def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160):
     # # Create graph edges with distances
     print("Generating Leiden initialization...")
     n_points, n_neighbors = knn_indices.shape
@@ -551,14 +663,16 @@ def leiden_init(knn_indices, knn_dists, resolution_parameter = 160):
         partition_type,
         resolution_parameter=resolution_parameter,
     )
+
+    mem = np.array(partition.membership)
+    num_clusters = len(np.unique(mem))
     
-    print(f'number of clusters: {len(np.unique(partition.membership))}')
+    print(f'number of clusters: {num_clusters}')
     print(f'modularity: {partition.modularity}')
     
-    def inter_cluster_edge_calc(partition, g, weighted=True):
-        num_clusters = len(np.unique(partition.membership))
+    
+    def inter_cluster_edge_calc(num_clusters, mem, g, weighted=True):
         inter_cluster_edges = np.zeros((num_clusters, num_clusters))
-        mem = np.array(partition.membership)
     
         edges = np.array([(mem[edge.source], mem[edge.target]) for edge in g.es])
         
@@ -571,10 +685,10 @@ def leiden_init(knn_indices, knn_dists, resolution_parameter = 160):
         
         return inter_cluster_edges
 
-    ic_edges = inter_cluster_edge_calc(partition, g, weighted = False)
+    ic_edges = inter_cluster_edge_calc(num_clusters, mem, g, weighted=False)
     ic_edges = ic_edges + ic_edges.T
     
-    mem_embeddings = my_umap(ic_edges, n_epochs = 2000, init = 'spectral', metric = 'cosine', precompute = False)
+    mem_embeddings = my_umap(ic_edges, knn = None, n_epochs = 2000)
     mem_embeddings[:, 0] -= np.mean(mem_embeddings[:, 0])
     mem_embeddings[:, 1] -= np.mean(mem_embeddings[:, 1])
     
@@ -587,14 +701,14 @@ def leiden_init(knn_indices, knn_dists, resolution_parameter = 160):
     return init, fig, ax
 
 ### UMAP METHODS ################################################################
-def my_umap(mat, knn, n_epochs, init="spectral"):
+def my_umap(mat, knn, n_epochs, n_neighbors = 45, min_dist = 0.1, init="spectral"):
     reducer = UMAP(n_components = 2,
                    metric = "cosine",
                    spread = 1.0,
                    random_state = None,
                    verbose = True,
                    
-                   precomputed_knn = knn,
+                   precomputed_knn = knn if not (knn is None) else (None, None, None),
                    n_neighbors = n_neighbors,
                    min_dist = min_dist,
                    n_epochs = n_epochs,

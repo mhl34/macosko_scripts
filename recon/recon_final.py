@@ -25,7 +25,7 @@ def get_args():
 
     parser.add_argument("-n", "--n_neighbors", help="the number of neighboring points used for manifold approximation", type=int, default=45)
     parser.add_argument("-d", "--min_dist", help="the effective minimum distance between embedded points", type=float, default=0.1)
-    parser.add_argument("-N", "--n_epochs", help="the number of epochs to be used in optimizing the embedding", type=int, default=5000)
+    parser.add_argument("-N", "--n_epochs", help="the number of epochs to be used in optimizing the embedding", type=int, default=500)
     parser.add_argument("-c", "--connectivity", help="'none', 'min_tree', or 'full_tree'", type=str, default="full_tree")
     parser.add_argument("-n2", "--n_neighbors2", help="the new NN to pick for MNN", type=int, default=45)
     

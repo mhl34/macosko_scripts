@@ -25,7 +25,7 @@ def get_args():
 
     parser.add_argument("-n", "--n_neighbors", help="the number of neighboring points used for manifold approximation", type=int, default=45)
     parser.add_argument("-d", "--min_dist", help="the effective minimum distance between embedded points", type=float, default=0.1)
-    parser.add_argument("-N", "--n_epochs", help="the number of epochs to be used in optimizing the embedding", type=int, default=500)
+    parser.add_argument("-N", "--n_epochs", help="the number of epochs to be used in optimizing the embedding", type=int, default=1000)
     parser.add_argument("-c", "--connectivity", help="'none', 'min_tree', or 'full_tree'", type=str, default="full_tree")
     parser.add_argument("-n2", "--n_neighbors2", help="the new NN to pick for MNN", type=int, default=45)
     
@@ -104,7 +104,6 @@ metadata["connection_filter"] = meta ; del meta
 # Rows are the beads you wish to recon
 # Columns are the features used for judging similarity
 mat = coo_matrix((df['umi'], (df['sb2_index'], df['sb1_index']))).tocsr()
-scipy.sparse.save_npz(os.path.join(out_dir, "mat.npz"), mat)
 del df
 
 sys.stdout.flush()
@@ -156,9 +155,11 @@ if connectivity != "none":
 
 print(f"Final matrix dimension: {mat.shape}")
 print(f"Final matrix size: {mat.data.nbytes/1024/1024:.2f} MiB")
+scipy.sparse.save_npz(os.path.join(out_dir, "mat.npz"), mat)
 
 ### UMAP TIME ##################################################################
 init, fig, ax = leiden_init(knn_indices, knn_dists, n_neighbors)
+fig.savefig(os.path.join(out_dir, "leiden.pdf"), dpi=200) ; del fig
 
 if unit.upper() == "CPU":
     from umap import UMAP
@@ -189,12 +190,12 @@ with open(os.path.join(out_dir, "Puck.csv"), mode='w', newline='') as file:
         writer.writerow([sbs[i], embedding[i,0], embedding[i,1]])
 
 # Plot the umap
-title = f"umap hexbin ({embedding.shape[0]:} anchor beads) [{(len(embeddings))*1000} epochs]"
+title = f"umap hexbin ({embedding.shape[0]:} anchor beads) [{n_epochs} epochs]"
 fig, ax = hexmap(embedding, title)
 fig.savefig(os.path.join(out_dir, "umap.pdf"), dpi=200)
 
 # Plot the intermediate embeddings
-fig, axes = hexmaps(embeddings, titles=[(i+1)*1000 for i in range(len(embeddings))])
+fig, axes = hexmaps(embeddings, titles=[n_epochs for i in range(len(embeddings))])
 fig.savefig(os.path.join(out_dir, "umaps.pdf"), dpi=200)
 
 # Plot the weighted embeddings

@@ -8,6 +8,9 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 from functools import reduce
 from collections import Counter
+import gc
+from sklearn.preprocessing import normalize
+from sparse_dot_topn import sp_matmul_topn
 import leidenalg as la
 import igraph as igp
 from umap import UMAP
@@ -312,6 +315,7 @@ def connection_filter(df):
     fig.tight_layout()
     return df, uniques1, uniques2, fig, meta
 
+
 def knn_filter(knn_indices, knn_dists):
     fig, axes = plt.subplots(2, 2, figsize=(8, 6))
     filter_indexes = set()
@@ -400,6 +404,25 @@ def knn_filter(knn_indices, knn_dists):
 
 
 ### KNN METHODS ################################################################
+# Calculate Top-N KNN
+def top_n_mat(mat, top_n = 150):
+    # L2 normalize by row
+    mat_norm = normalize(mat, norm='l2', axis=1, copy=True)
+    mat_norm = mat_norm.astype(np.float32)
+
+    # Take dot product of each row (top-N results written to prod)
+    prod = sp_matmul_topn(mat_norm, mat_norm.T, top_n=top_n, sort=True, idx_dtype = np.dtype('int64'), n_threads = -1)
+
+    # make cosine distance and clean up
+    new_data = 1 - prod.data
+    new_data *= (new_data > 0).astype(np.int64)
+    mat_comp = sp.csr_matrix((new_data, prod.indices, prod.indptr), shape=prod.shape)
+    mat_comp.eliminate_zeros()
+    del prod
+    gc.collect()
+
+    return mat_comp
+
 
 # Compute the KNN using NNDescent
 def knn_descent(mat, n_neighbors, metric="cosine", n_jobs=-1):    
@@ -525,7 +548,7 @@ def create_knn_matrix(knn_indices, knn_dists):
     assert knn_indices.dtype == np.int32 and knn_dists.dtype == np.float64
     assert np.max(knn_indices) < len(knn_indices)
     assert np.array_equal(knn_indices[:,0], np.arange(len(knn_indices)))
-    # assert np.all(knn_dists[:,1:] > 0) and not np.any(np.isnan(knn_dists))
+    assert np.all(knn_dists[:,1:] > 0) and not np.any(np.isnan(knn_dists))
     
     rows = np.repeat(knn_indices[:,0], knn_indices.shape[1]-1)
     cols = knn_indices[:,1:].ravel()
@@ -542,6 +565,70 @@ def create_knn_matrix(knn_indices, knn_dists):
     knn_matrix = sp.csr_matrix((vals, (rows, cols)), shape=(knn_indices.shape[0], knn_indices.shape[0]))
     
     return knn_matrix    
+
+# Prune non-reciprocated edges from matrix
+def create_knn_from_matrix(knn_matrix):
+    # Create mutual graph
+    print(f"Creating KNN indices and dists...")
+    lil = knn_matrix.tolil()
+    lil.setdiag(0)
+    # del knn_matrix, m
+    del knn_matrix
+    
+    # Write output
+    print("Writing output...")
+    nrows = lil.shape[0]
+    ncols = max(len(row) for row in lil.rows) + 1
+    
+    knn_indices = np.full((nrows, ncols), -1, dtype=np.int32)
+    knn_dists = np.full((nrows, ncols), np.inf, dtype=np.float64)
+    for i in range(nrows):
+        cols = np.array(lil.rows[i]+[i], dtype=np.int32)
+        vals = np.array(lil.data[i]+[0], dtype=np.float64)
+
+        sorted_indices = np.argsort(vals)
+        cols = cols[sorted_indices]
+        vals = vals[sorted_indices]
+
+        knn_indices[i, :len(cols)] = cols
+        knn_dists[i, :len(vals)] = vals
+    
+    print("done")
+    return knn_indices, knn_dists
+
+# Prune non-reciprocated edges from matrix
+def create_mnn_from_matrix(knn_matrix):
+    # Create mutual graph
+    print(f"Creating mutual graph...")
+    m = np.abs(knn_matrix - knn_matrix.T) > np.min(knn_matrix.data)/2
+    row, col = knn_matrix.nonzero()
+    knn_matrix.data *= ~m[knn_matrix.astype(bool)].A1
+    knn_matrix.eliminate_zeros()
+    lil = knn_matrix.tolil()
+    lil.setdiag(0)
+    # del knn_matrix, m
+    del knn_matrix
+    
+    # Write output
+    print("Writing output...")
+    nrows = lil.shape[0]
+    ncols = max(len(row) for row in lil.rows) + 1
+    
+    mnn_indices = np.full((nrows, ncols), -1, dtype=np.int32)
+    mnn_dists = np.full((nrows, ncols), np.inf, dtype=np.float64)
+    for i in range(nrows):
+        cols = np.array(lil.rows[i]+[i], dtype=np.int32)
+        vals = np.array(lil.data[i]+[0], dtype=np.float64)
+
+        sorted_indices = np.argsort(vals)
+        cols = cols[sorted_indices]
+        vals = vals[sorted_indices]
+
+        mnn_indices[i, :len(cols)] = cols
+        mnn_dists[i, :len(vals)] = vals
+    
+    print("done")
+    return mnn_indices, mnn_dists
 
 # Prune non-reciprocated edges
 def create_mnn(knn_indices, knn_dists):
@@ -637,19 +724,23 @@ def find_path_neighbors(knn_indices, knn_dists, out_neighbors, n_jobs=-1):
     assert mnn_indices.shape == mnn_dists.shape
     assert mnn_indices.shape[0] == knn_indices.shape[0]
     assert np.max(mnn_indices) < len(mnn_indices)
-    # assert np.all(mnn_indices >= 0) and np.all(mnn_dists >= 0)
+    assert np.all(mnn_indices >= 0) and np.all(mnn_dists >= 0)
     assert np.array_equal(mnn_indices[:,0], np.arange(len(mnn_indices)))
     assert mnn_indices.dtype == np.int32 and mnn_dists.dtype == np.float64
     return mnn_indices, mnn_dists
 
-### INITIALIZATION METHODS ################################################################
 
+### INITIALIZATION METHODS ################################################################
 def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160):
     # # Create graph edges with distances
-    print("Generating Leiden initialization...")
     n_points, n_neighbors = knn_indices.shape
     row_indices = np.repeat(np.arange(n_points), n_neighbors - 1)  
     col_indices = knn_indices[:, 1:].ravel() 
+
+    # Filter out edges where row or column indices are -1
+    valid_edges_mask = (row_indices != -1) & (col_indices != -1)
+    row_indices = row_indices[valid_edges_mask]
+    col_indices = col_indices[valid_edges_mask]
     edges = np.column_stack((row_indices, col_indices))
     
     g = igp.Graph(edges=edges, directed=True)

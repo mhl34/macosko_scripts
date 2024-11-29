@@ -785,7 +785,7 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
     
     fig, ax = plt.subplots()
     ax.scatter(mem_embeddings[:, 0], mem_embeddings[:, 1], s=1)
-    ax.set_title('New SB1 selection')
+    ax.set_title('Leiden Initialization')
     
     init = mem_embeddings[mem]
     

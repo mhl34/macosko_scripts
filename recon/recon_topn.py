@@ -219,7 +219,7 @@ if len(embeddings) > 1:
     fig.savefig(os.path.join(out_dir, "convergence.pdf"), dpi=200) ; del fig
 
 # Make summary pdf
-names = ["umap", "connections", "knn", "uvc", "convergence", "umaps", "logumi"]
+names = ["umap", "connections", "knn", "uvc", "convergence", "leiden", "logumi"]
 paths = [os.path.join(out_dir, n+".pdf") for n in names]
 files = [p for p in paths if os.path.isfile(p)]
 if len(files) > 0:

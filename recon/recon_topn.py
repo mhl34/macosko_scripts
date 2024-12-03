@@ -115,7 +115,7 @@ sys.stdout.flush()
 
 print("\nComputing the KNN...")
 n_neighbors_max = 150
-knn_matrix = split_top_n_mat(mat, top_n = n_neighbors_max)
+knn_matrix = split_top_n_mat(np.log1p(mat), top_n = n_neighbors_max)
 # knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors_max)
 # knn_indices[:, 0] = np.arange(knn_indices.shape[0])
 
@@ -135,25 +135,25 @@ scipy.sparse.save_npz(os.path.join(out_dir, "knn_matrix.npz"), knn_matrix)
 if connectivity != "none":
     print("\nCreating the MNN...")
     # mnn_indices, mnn_dists = create_mnn(knn_indices, knn_dists)
-    knn_indices, knn_dists = create_knn_from_matrix(knn_matrix)
+    mnn_indices, mnn_dists = create_mnn_from_matrix(knn_matrix)
     
-    # bad_mask = mnn_indices[:, 1] == -1
-    # if bad_mask.sum() > 0:
-    #     bad_bead_indices = np.where(bad_mask)[0]
+    bad_mask = mnn_indices[:, 1] == -1
+    if bad_mask.sum() > 0:
+        bad_bead_indices = np.where(bad_mask)[0]
         
-    #     mnn_mask = KNNMask(mnn_indices, mnn_dists)
-    #     mnn_indices, mnn_dists = mnn_mask.remove(bad_bead_indices)
+        mnn_mask = KNNMask(mnn_indices, mnn_dists)
+        mnn_indices, mnn_dists = mnn_mask.remove(bad_bead_indices)
         
-    #     mat = mat[mnn_mask.final()]
-    #     uniques2 = uniques2[mnn_mask.final()]
+        mat = mat[mnn_mask.final()]
+        uniques2 = uniques2[mnn_mask.final()]
     
-    mnn_indices, mnn_dists = find_path_neighbors(knn_indices, knn_dists, k_neighbors, n_jobs=-1)
+    mnn_indices2, mnn_dists2 = find_path_neighbors(mnn_indices, mnn_dists, k_neighbors, n_jobs=-1)
     
-    # knn_indices = mnn_indices2[:, :n_neighbors]
-    # knn_dists = mnn_dists2[:, :n_neighbors]
+    knn_indices = mnn_indices2[:, :n_neighbors]
+    knn_dists = mnn_dists2[:, :n_neighbors]
 
-    knn_indices = mnn_indices
-    knn_dists = mnn_dists
+    # knn_indices = mnn_indices
+    # knn_dists = mnn_dists
     
     np.savez_compressed(os.path.join(out_dir, "mnn.npz"), indices=knn_indices, dists=knn_dists)
     # assert np.all(np.isfinite(mnn_indices))

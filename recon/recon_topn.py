@@ -98,6 +98,8 @@ print(f"{sb2.shape[0]} R2 barcodes")
 
 print("\nFiltering the beads...")
 df, uniques1, uniques2, fig, meta = connection_filter(df)
+np.savez_compressed(os.path.join(out_dir, "uniques1.npz"), uniques1=uniques1)
+np.savez_compressed(os.path.join(out_dir, "uniques2.npz"), uniques2=uniques2)
 fig.savefig(os.path.join(out_dir,'connections.pdf'), format='pdf') ; del fig
 metadata["connection_filter"] = meta ; del meta
 
@@ -113,7 +115,7 @@ sys.stdout.flush()
 
 print("\nComputing the KNN...")
 n_neighbors_max = 150
-knn_matrix = top_n_mat(mat, top_n = n_neighbors_max)
+knn_matrix = split_top_n_mat(mat, top_n = n_neighbors_max)
 # knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors_max)
 # knn_indices[:, 0] = np.arange(knn_indices.shape[0])
 
@@ -168,6 +170,7 @@ scipy.sparse.save_npz(os.path.join(out_dir, "mat_final.npz"), mat)
 print("\nGenerating Leiden initialization...")
 init, fig, ax = leiden_init(knn_indices, knn_dists, n_neighbors)
 fig.savefig(os.path.join(out_dir, "leiden.pdf"), dpi=200) ; del fig
+np.savez_compressed(os.path.join(out_dir, 'leiden_init.npz'), init = init)
 
 if unit.upper() == "CPU":
     from umap import UMAP

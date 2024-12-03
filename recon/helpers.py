@@ -10,7 +10,7 @@ from functools import reduce
 from collections import Counter
 import gc
 from sklearn.preprocessing import normalize
-from sparse_dot_topn import sp_matmul_topn
+from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
 import leidenalg as la
 import igraph as igp
 from umap import UMAP
@@ -423,6 +423,43 @@ def top_n_mat(mat, top_n = 150):
 
     return mat_comp
 
+def split_top_n_mat(mat, top_n = 150, chunks = 2):
+    # L2 normalize by row
+    mat_norm = normalize(mat, norm='l2', axis=1, copy=True)
+    mat_norm = mat_norm.astype(np.float32)
+
+    # 2a. Split the sparse matrices. Here A is split into three parts, and B into five parts.
+    print('\nChunk data...')
+    chunk_size = mat_norm.shape[0] // chunks
+    end = mat_norm.shape[0] % chunks
+    As = [mat_norm[i * chunk_size: (i+1) * chunk_size + end * (i == chunks - 1)] for i in range(chunks)]
+    Bs = [mat_norm[i * chunk_size: (i+1) * chunk_size + end * (i == chunks - 1)] for i in range(chunks)]
+    del mat_norm
+    gc.collect()
+    
+    print('\nMultiply sub-matrices...')
+    Cs = [[sp_matmul_topn(Aj, Bi.T, top_n=top_n, sort=True, idx_dtype = np.dtype('int64'), n_threads = -1) for Bi in Bs] for Aj in As]
+    del As
+    del Bs
+    gc.collect()
+    
+    print('\nZip sub-matrices...')
+    Czip = [zip_sp_matmul_topn(top_n=150, C_mats=Cis) for Cis in Cs]
+    del Cs
+    gc.collect()
+    
+    print('\nStack matrices...')
+    prod = sp.vstack(Czip, dtype=np.float32)
+
+    # make cosine distance and clean up
+    new_data = 1 - prod.data
+    new_data *= (new_data > 0).astype(np.int64)
+    mat_comp = sp.csr_matrix((new_data, prod.indices, prod.indptr), shape=prod.shape)
+    mat_comp.eliminate_zeros()
+    del prod
+    gc.collect()
+
+    return mat_comp
 
 # Compute the KNN using NNDescent
 def knn_descent(mat, n_neighbors, metric="cosine", n_jobs=-1):    
@@ -602,6 +639,8 @@ def create_mnn_from_matrix(knn_matrix):
     print(f"Creating mutual graph...")
     m = np.abs(knn_matrix - knn_matrix.T) > np.min(knn_matrix.data)/2
     row, col = knn_matrix.nonzero()
+    m.indptr = m.indptr.astype(np.int64)
+    m.indices = m.indices.astype(np.int64)
     knn_matrix.data *= ~m[knn_matrix.astype(bool)].A1
     knn_matrix.eliminate_zeros()
     lil = knn_matrix.tolil()

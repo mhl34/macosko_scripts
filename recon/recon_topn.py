@@ -147,10 +147,13 @@ if connectivity != "none":
         mat = mat[mnn_mask.final()]
         uniques2 = uniques2[mnn_mask.final()]
     
-    mnn_indices2, mnn_dists2 = find_path_neighbors(mnn_indices, mnn_dists, k_neighbors, n_jobs=-1)
+    # mnn_indices2, mnn_dists2 = find_path_neighbors(mnn_indices, mnn_dists, k_neighbors, n_jobs=-1)
     
-    knn_indices = mnn_indices2[:, :n_neighbors]
-    knn_dists = mnn_dists2[:, :n_neighbors]
+    # knn_indices = mnn_indices2[:, :n_neighbors]
+    # knn_dists = mnn_dists2[:, :n_neighbors]
+
+    knn_indices = mnn_indices[:, :n_neighbors]
+    knn_dists = mnn_dists[:, :n_neighbors]
 
     # knn_indices = mnn_indices
     # knn_dists = mnn_dists
@@ -165,6 +168,7 @@ if connectivity != "none":
 print(f"Final matrix dimension: {mat.shape}")
 print(f"Final matrix size: {mat.data.nbytes/1024/1024:.2f} MiB")
 scipy.sparse.save_npz(os.path.join(out_dir, "mat_final.npz"), mat)
+np.savez_compressed(os.path.join(out_dir, 'uniques2.npz'), uniques2 = uniques2)
 
 ### UMAP TIME ##################################################################
 print("\nGenerating Leiden initialization...")
@@ -204,10 +208,6 @@ with open(os.path.join(out_dir, "Puck.csv"), mode='w', newline='') as file:
 title = f"umap hexbin ({embedding.shape[0]:} anchor beads) [{n_epochs} epochs]"
 fig, ax = hexmap(embedding, title)
 fig.savefig(os.path.join(out_dir, "umap.pdf"), dpi=200)
-
-# Plot the intermediate embeddings
-fig, axes = hexmaps(embeddings, titles=[n_epochs for i in range(len(embeddings))])
-fig.savefig(os.path.join(out_dir, "umaps.pdf"), dpi=200)
 
 # Plot the weighted embeddings
 fig, ax = umi_density_plot(os.path.join(out_dir, "Puck.csv"), os.path.join(in_dir, 'sb2.csv.gz'))

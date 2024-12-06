@@ -818,7 +818,9 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
     ic_edges = inter_cluster_edge_calc(num_clusters, mem, g, weighted=False)
     ic_edges = ic_edges + ic_edges.T
 
-    knn_indices, knn_dists = knn_descent(ic_edges, 45, metric="cosine", n_jobs=-1)
+    knn_indices, knn_dists = knn_descent(ic_edges, 150, metric="cosine", n_jobs=-1)
+    knn_indices = knn_indices[:, n_neighbors]
+    knn_dists = knn_dists[:, n_neighbors]
     knn = (knn_indices, knn_dists)
     
     mem_embeddings = my_umap(ic_edges, knn = knn, n_epochs = 20000, min_dist = 0.1, init = "spectral")

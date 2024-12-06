@@ -817,8 +817,11 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
 
     ic_edges = inter_cluster_edge_calc(num_clusters, mem, g, weighted=False)
     ic_edges = ic_edges + ic_edges.T
+
+    knn_indices, knn_dists = knn_descent(ic_edges, 45, metric="cosine", n_jobs=-1)
+    knn = (knn_indices, knn_dists)
     
-    mem_embeddings = my_umap(ic_edges, knn = None, n_epochs = 2000)
+    mem_embeddings = my_umap(ic_edges, knn = knn, n_epochs = 20000, min_dist = 0.1, init = "spectral")
     mem_embeddings[:, 0] -= np.mean(mem_embeddings[:, 0])
     mem_embeddings[:, 1] -= np.mean(mem_embeddings[:, 1])
     
@@ -828,7 +831,7 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
     
     init = mem_embeddings[mem]
     
-    return init, fig, ax
+    return init, ic_edges, fig, ax
 
 ### UMAP METHODS ################################################################
 def my_umap(mat, knn, n_epochs, n_neighbors = 45, min_dist = 0.1, init="spectral"):

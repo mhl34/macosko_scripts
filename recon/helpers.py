@@ -823,7 +823,7 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
     knn_dists = knn_dists[:, :n_neighbors]
     knn = (knn_indices, knn_dists)
     
-    mem_embeddings = my_umap(ic_edges, knn = knn, n_epochs = 20000, min_dist = 0.1, init = "spectral")
+    mem_embeddings = my_umap(ic_edges, knn = knn, n_epochs = 5000, min_dist = 0.1, init = "spectral", repulsion_strength = 2, negative_sample_rate = 20)
     mem_embeddings[:, 0] -= np.mean(mem_embeddings[:, 0])
     mem_embeddings[:, 1] -= np.mean(mem_embeddings[:, 1])
     
@@ -836,13 +836,24 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
     return init, ic_edges, fig, ax
 
 ### UMAP METHODS ################################################################
-def my_umap(mat, knn, n_epochs, n_neighbors = 45, min_dist = 0.1, init="spectral"):
+def my_umap(mat, 
+            knn, 
+            n_epochs, 
+            n_neighbors = 45, 
+            min_dist = 0.1, 
+            init="spectral", 
+            repulsion_strength = 1.0, 
+            negative_sample_rate = 5,
+            local_connectivity = 1
+           ):
     reducer = UMAP(n_components = 2,
                    metric = "cosine",
                    spread = 1.0,
                    random_state = None,
                    verbose = True,
-                   
+                   negative_sample_rate = negative_sample_rate,
+                   repulsion_strength = repulsion_strength,
+                   local_connectivity = local_connectivity,
                    precomputed_knn = knn if not (knn is None) else (None, None, None),
                    n_neighbors = n_neighbors,
                    min_dist = min_dist,

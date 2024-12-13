@@ -187,7 +187,7 @@ else:
 
 print("\nRunning UMAP...")
 if unit.upper() == "CPU":
-    embeddings.append(my_umap(mat, knn, init = init, n_epochs=n_epochs))
+    embeddings.append(my_umap(mat, knn, init = init, n_epochs=n_epochs, local_connectivity = 6, negative_sample_rate = 10))
 elif unit.upper() == "GPU":
     embeddings.append(my_umap(mat, knn, n_epochs=n_epochs))
 

@@ -823,7 +823,7 @@ def leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = 160)
     knn_dists = knn_dists[:, :n_neighbors]
     knn = (knn_indices, knn_dists)
     
-    mem_embeddings = my_umap(ic_edges, knn = knn, n_epochs = 5000, min_dist = 0.1, init = "spectral", repulsion_strength = 2, negative_sample_rate = 20)
+    mem_embeddings = my_umap(ic_edges, knn = knn, n_epochs = 5000, min_dist = 0.1, init = "spectral", local_connectivity = 6, negative_sample_rate = 10)
     mem_embeddings[:, 0] -= np.mean(mem_embeddings[:, 0])
     mem_embeddings[:, 1] -= np.mean(mem_embeddings[:, 1])
     

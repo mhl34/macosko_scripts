@@ -114,7 +114,7 @@ sys.stdout.flush()
 ### Compute the KNN ############################################################
 
 print("\nComputing the KNN...")
-n_neighbors_max = 45
+n_neighbors_max = 150
 knn_matrix = split_top_n_mat(np.log1p(mat), top_n = n_neighbors_max)
 # knn_indices, knn_dists = knn_descent(np.log1p(mat), n_neighbors_max)
 # knn_indices[:, 0] = np.arange(knn_indices.shape[0])
@@ -135,22 +135,22 @@ scipy.sparse.save_npz(os.path.join(out_dir, "knn_matrix.npz"), knn_matrix)
 if connectivity != "none":
     print("\nCreating the MNN...")
     # mnn_indices, mnn_dists = create_mnn(knn_indices, knn_dists)
-    knn_indices, knn_dists = create_knn_from_matrix(knn_matrix)
+    mnn_indices, mnn_dists = create_mnn_from_matrix(knn_matrix)
     
-    # bad_mask = mnn_indices[:, 1] == -1
-    # if bad_mask.sum() > 0:
-    #     bad_bead_indices = np.where(bad_mask)[0]
+    bad_mask = mnn_indices[:, 1] == -1
+    if bad_mask.sum() > 0:
+        bad_bead_indices = np.where(bad_mask)[0]
         
-    #     mnn_mask = KNNMask(mnn_indices, mnn_dists)
-    #     mnn_indices, mnn_dists = mnn_mask.remove(bad_bead_indices)
+        mnn_mask = KNNMask(mnn_indices, mnn_dists)
+        mnn_indices, mnn_dists = mnn_mask.remove(bad_bead_indices)
         
-    #     mat = mat[mnn_mask.final()]
-    #     uniques2 = uniques2[mnn_mask.final()]
+        mat = mat[mnn_mask.final()]
+        uniques2 = uniques2[mnn_mask.final()]
     
-    # mnn_indices2, mnn_dists2 = find_path_neighbors(mnn_indices, mnn_dists, k_neighbors, n_jobs=-1)
+    mnn_indices2, mnn_dists2 = find_path_neighbors(mnn_indices, mnn_dists, n_neighbors, n_jobs=-1)
     
-    # knn_indices = mnn_indices2[:, :n_neighbors]
-    # knn_dists = mnn_dists2[:, :n_neighbors]
+    knn_indices = mnn_indices2[:, :n_neighbors]
+    knn_dists = mnn_dists2[:, :n_neighbors]
 
     # knn_indices = mnn_indices[:, :n_neighbors]
     # knn_dists = mnn_dists[:, :n_neighbors]
@@ -172,11 +172,10 @@ np.savez_compressed(os.path.join(out_dir, 'uniques2.npz'), uniques2 = uniques2)
 
 ### UMAP TIME ##################################################################
 print("\nGenerating Leiden initialization...")
-resolution_parameter = 160
-init, fig, ax = leiden_init(knn_indices, knn_dists, n_neighbors, resolution_parameter = resolution_parameter)
+init, ic_edges, fig, ax = leiden_init(knn_indices, knn_dists, n_neighbors)
 fig.savefig(os.path.join(out_dir, "leiden.pdf"), dpi=200) ; del fig
 np.savez_compressed(os.path.join(out_dir, 'leiden_init.npz'), init = init)
-np.savez_compressed(os.path.join(out_dir, f'ic_edges_{resolution_parameter}.npz'), ic_edges = ic_edges)
+np.savez_compressed(os.path.join(out_dir, 'ic_edges.npz'), ic_edges = ic_edges)
 
 if unit.upper() == "CPU":
     from umap import UMAP
@@ -187,7 +186,7 @@ else:
 
 print("\nRunning UMAP...")
 if unit.upper() == "CPU":
-    embeddings.append(my_umap(mat, knn, init = init, n_epochs=n_epochs, local_connectivity = 6, negative_sample_rate = 10))
+    embeddings.append(my_umap(mat, knn, init = init, n_epochs = n_epochs, local_connectivity = 6, negative_sample_rate = 10))
 elif unit.upper() == "GPU":
     embeddings.append(my_umap(mat, knn, n_epochs=n_epochs))
 

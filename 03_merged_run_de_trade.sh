@@ -7,6 +7,7 @@ BASE_DIR="$1"
 RSCRIPT_DE="run-nemesh-de.R"
 RSCRIPT_TRADE="run-trade-dream-annot.R"
 GENESET_QS="~/zonation/TWI_analysis/gene_sets/D1_all_gsea_terms_with_block_and_disease.qs"
+DIR_LABEL="paired_permutation_Astrocyte_DV_label_1000"
 
 find "${BASE_DIR}" -mindepth 1 -maxdepth 1 -type d -print0 \
   | xargs -0 -n 1 -P 50 bash -c '
@@ -30,7 +31,7 @@ find "${BASE_DIR}" -mindepth 1 -maxdepth 1 -type d -print0 \
 
       if [[ "$run_de" == true ]]; then
         echo "[DE] Running on $name"
-        Rscript "'"$RSCRIPT_DE"'" -l "$name" -n 2
+        Rscript "'"$RSCRIPT_DE"'" -d "'"$DIR_LABEL"'" -l "$name" -n 2
       fi
 
       # --- STEP 01: Trade / GSEA ---

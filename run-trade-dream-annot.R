@@ -10,7 +10,7 @@ suppressWarnings(suppressMessages(library(qs)))
 suppressWarnings(suppressMessages(library(RhpcBLASctl)))
 suppressWarnings(suppressMessages(library(TRADEtools)))
 suppressWarnings(suppressMessages(library(tools)))
-suppressWarnings(suppressMessages(source("/broad/macosko/leematth/projects/zonation/sva_bennett/sc-online/utils.R")))
+suppressWarnings(suppressMessages(source("~/zonation/sva_bennett/sc-online/utils.R")))
 
 # path is absolute path to qs or rds file of limma results from run-limma-v2.R
 # contrast-col, optional: the name of the coefficient to be used as a contrast
@@ -18,11 +18,12 @@ suppressWarnings(suppressMessages(source("/broad/macosko/leematth/projects/zonat
 # gene-set, optional:     the string specifying a gene set (qs file with a list (named gene_set))
 
 spec <- matrix(c(
-  'path', 'p', 1, "character",
-  'contrast-col', 'cc', 1, "character",
-  'contrast-str', 'cs', 1, "character",
-  'num-threads', 'n', 1, 'integer',
-  'gene-set', 'g', 1, 'character'
+  'path',         'p', 1, "character",
+  'contrast-col', 'c', 1, "character", # Changed 'cc' to 'c'
+  'contrast-str', 's', 1, "character", # Changed 'cs' to 's'
+  'num-threads',  'n', 1, 'integer',
+  'gene-set',     'g', 1, 'character',
+  'coef-regex',   'r', 1, 'character'  # Changed 'cr' to 'r'
 ), byrow = TRUE, ncol = 4)
 opt <- getopt(spec)
 
@@ -34,6 +35,7 @@ PATH = opt[['path']]
 CONTRAST_COL = opt[['contrast-col']]
 CONTRAST_STR = opt[['contrast-str']]
 GENE_SET = opt[['gene-set']]
+COEF_REGEX = opt[['coef-regex']]
 
 slogan = gsub(".qs$", "", basename(PATH))
 slogan = gsub(".rds$", "", slogan)
@@ -43,7 +45,7 @@ fit = res
 coefs = colnames(res$coefficients)
 gene_names = rownames(res$coefficients)
 annot_table = NULL
-annot_ext = NULL
+coef_regex = COEF_REGEX
 
 if (length(GENE_SET) > 0) {
   if (file.exists(GENE_SET)) {
@@ -100,7 +102,13 @@ if (!is.null(CONTRAST_COL) & !is.null(CONTRAST_STR)){
 }
 # now prepare TRADE inputs for all non-contrast coefficients
 cat("Preparing Inputs for all other coefficients...\n")
-for (coef in coefs){
+if (!is.null(coef_regex)) {
+  terms = coefs[grepl(coef_regex, coefs)]
+  print(paste0('query terms: ', terms))
+} else {
+  terms = coefs
+}
+for (coef in terms){
   se_before_eBayes = setNames(as.data.frame(fit$stdev.unscaled)[[coef]] * fit$sigma, rownames(fit))
   logFCs = setNames(as.data.frame(fit$coef)[[coef]], rownames(fit))
   ordinary_tstat = as.data.frame(fit$coef)[[coef]] / (as.data.frame(fit$stdev.unscaled)[[coef]] * fit$sigma)

@@ -7,6 +7,9 @@ library(magrittr)
 library(SPARK)
 library(RcppML)
 library(ggplot2)
+library(purrr)
+library(AnnotationDbi)
+library(org.Hs.eg.db)
 library(dplyr)
 library(viridis)
 library(scCustomize)
@@ -25,6 +28,53 @@ library(SingleCellExperiment)
 source('/broad/macosko/leematth/helpers/sc_helpers.R')
 source('/broad/macosko/leematth/helpers/spatial_helpers.R')
 source('/broad/macosko/leematth/helpers/anno_helpers.R')
+
+process_de_results_into_covar <- function(input_dir, output_file, signed_only = FALSE) {
+  files <- list.files(path = input_dir, pattern = "_DE_results\\.txt$", full.names = TRUE)
+  
+  if (length(files) == 0) {
+    stop("No matching files found in the directory.")
+  }
+  list_of_dfs <- map(files, function(file_path) {
+    file_name <- basename(file_path)
+    prefix <- str_remove(file_name, "_DE_results\\.txt$")
+    df <- read.table(file_path, header = TRUE, row.names = 1, sep = "\t", check.names = FALSE)
+    temp_df <- data.frame(
+      gene = rownames(df),
+      raw_logFC = df$logFC,
+      sig_logFC = df$logFC * (df$adj.P.Val < 0.05),
+      metric = df$logFC * -log10(df$adj.P.Val),
+      stringsAsFactors = FALSE
+    )
+    if (signed_only) {
+      temp_df <- temp_df %>%
+        mutate(
+          # Positive versions (values < 0 become 0)
+          pos_raw_logFC = ifelse(raw_logFC > 0, raw_logFC, 0),
+          pos_sig_logFC = ifelse(sig_logFC > 0, sig_logFC, 0),
+          pos_metric    = ifelse(metric > 0, metric, 0),
+          
+          # Negative versions (values > 0 become 0)
+          neg_raw_logFC = ifelse(raw_logFC < 0, raw_logFC, 0),
+          neg_sig_logFC = ifelse(sig_logFC < 0, sig_logFC, 0),
+          neg_metric    = ifelse(metric < 0, metric, 0)
+        )
+    }
+    colnames(temp_df)[-1] <- paste0(colnames(temp_df)[-1], "_", prefix)
+    
+    return(temp_df)
+  })
+  merged_metric_df <- list_of_dfs %>% reduce(full_join, by = "gene")
+  merged_metric_df$gene <- mapIds(org.Hs.eg.db, 
+                                  keys = merged_metric_df$gene, 
+                                  column = "ENTREZID", 
+                                  keytype = "SYMBOL", 
+                                  multiVals = "first")
+  merged_metric_df <- merged_metric_df[!is.na(merged_metric_df$gene), ]
+  write.table(merged_metric_df, output_file, 
+              sep = "\t", quote = FALSE, row.names = FALSE, na = "NA")
+  message(paste("Success! File saved to:", output_file))
+}
 
 remove_pseudogenes = function(obj) {
   mito_genes = substr(rownames(obj), 1, 3) == 'MT-'

@@ -10,7 +10,7 @@ suppressWarnings(suppressMessages(library(qs)))
 suppressWarnings(suppressMessages(library(RhpcBLASctl)))
 suppressWarnings(suppressMessages(library(TRADEtools)))
 suppressWarnings(suppressMessages(library(tools)))
-suppressWarnings(suppressMessages(source("~/zonation/sva_bennett/sc-online/utils.R")))
+suppressWarnings(suppressMessages(source("/broad/macosko/leematth/projects/zonation/sva_bennett/sc-online/utils.R")))
 
 # path is absolute path to qs or rds file of limma results from run-limma-v2.R
 # contrast-col, optional: the name of the coefficient to be used as a contrast
@@ -46,6 +46,7 @@ coefs = colnames(res$coefficients)
 gene_names = rownames(res$coefficients)
 annot_table = NULL
 coef_regex = COEF_REGEX
+annot_ext = ""
 
 if (length(GENE_SET) > 0) {
   if (file.exists(GENE_SET)) {
@@ -57,11 +58,11 @@ if (length(GENE_SET) > 0) {
     )
     rownames(annot_table) <- gene_names
     annot_table = as.table(annot_table)
-    annot_ext = file_path_sans_ext(basename(GENE_SET))
+    annot_ext = paste0("_", file_path_sans_ext(basename(GENE_SET)))
   }
 }
 
-trade_dir = file.path(dirname(PATH), paste0("trade_", annot_ext))
+trade_dir = file.path(dirname(PATH), paste0("trade", annot_ext))
 if (!dir.exists(trade_dir)) {
   dir.create(trade_dir, recursive=TRUE)
 }

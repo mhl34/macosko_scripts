@@ -1,6 +1,5 @@
 suppressWarnings(suppressMessages(library(scCustomize)))
 suppressWarnings(suppressMessages(library(dplyr)))
-suppressWarnings(suppressMessages(library(harmony)))
 suppressWarnings(suppressMessages(library(qs)))
 suppressWarnings(suppressMessages(library(magrittr)))
 suppressWarnings(suppressMessages(library(Seurat)))

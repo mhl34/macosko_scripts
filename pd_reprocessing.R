@@ -35,9 +35,9 @@ dropsift_path   = arguments$args[[2]]  ; print(g("dropsift_path:   {dropsift_pat
 seurat_path     = arguments$args[[3]]  ; print(g("seurat_path:     {seurat_path}"))
 out_path        = arguments$args[[4]]  ; print(g("out_path:        {out_path}"))
 
-h5          = Read_CellBender_h5_Mat('/broad/macosko/leematth/projects/PD/mehrdad_reprocessing/sample/gene-expression/SI-TT-F1_out.h5')
-dropsift    = read.csv('/broad/macosko/leematth/projects/PD/mehrdad_reprocessing/sample/dropsift_outputs/dropsift_output.csv')
-seurat_old  = qread('/broad/macosko/leematth/projects/PD/mehrdad_reprocessing/sample/spatial-data/seurat.qs')
+h5          = Read_CellBender_h5_Mat(cellbender_path)
+dropsift    = read.csv(dropsift_path)
+seurat_old  = qread(seurat_path)
 seurat_new  = CreateSeuratObject(counts = h5[,colnames(seurat_old@assays$RNA$counts)])
 
 seurat_new@meta.data['logumi'] = log1p(seurat_new@meta.data['nCount_RNA'])
@@ -64,5 +64,5 @@ seurat_new_dropsift            = AddMetaData(seurat_new, metadata = metadata_dro
 seurat_new_dropsift %<>% add_spatial
 seurat_new_dropsift %<>% process
 
-qsave(seurat_new_dropsift, out_dir)
+qsave(seurat_new_dropsift, out_path)
 

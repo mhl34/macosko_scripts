@@ -62,7 +62,7 @@ metadata_dropsift              = metadata_dropsift %>%
 seurat_new_dropsift            = AddMetaData(seurat_new, metadata = metadata_dropsift)
 
 seurat_new_dropsift %<>% add_spatial
-seurat_new_dropsift %<>% process
+# seurat_new_dropsift %<>% process
 
 qsave(seurat_new_dropsift, out_path)
 

@@ -72,7 +72,7 @@ cat("\n")
 # Load the matrix
 if (!is.null(cells) || dropsift) {
   # Load the raw matrix
-  if (length(f <- list.files(path = rna_path, pattern = "_out\\.h5$", full.names = TRUE)) > 0) {
+  if (length(f <- list.files(path = rna_path, pattern = "_out_filtered\\.h5$", full.names = TRUE)) > 0) {
     print("Loading CellBender matrix")
     mat <- Read_CellBender_h5_Mat(f[1])
   } else if (file.exists(file.path(rna_path, "raw_feature_bc_matrix.h5"))) {
@@ -95,7 +95,7 @@ if (!is.null(cells) || dropsift) {
   
 } else {
   # Load the filtered matrix
-  if (length(f <- list.files(path = rna_path, pattern = "_out\\.h5$", full.names = TRUE)) > 0) {
+  if (length(f <- list.files(path = rna_path, pattern = "_out_filtered\\.h5$", full.names = TRUE)) > 0) {
     print("Loading CellBender matrix")
     print(f[1])
     mat <- Read_CellBender_h5_Mat(f[1])
